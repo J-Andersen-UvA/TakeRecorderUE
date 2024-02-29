@@ -1,7 +1,23 @@
 import unreal
 import os
 
+#########################################################################################################
+#                                            UEFileManager                                              #
+#########################################################################################################
+
+
 class UEFileFunctionalities:
+    """
+    Class for Unreal Engine file functionalities.
+
+    This class provides methods to interact with files and directories within an Unreal Engine project.
+
+    Methods:
+    - get_all_files_in_directory(self, directory): Get all files from a single directory (non-recursively).
+    - get_project_path(self): Get the project path.
+    - fetch_files_from_dir_in_project(self, dir, project_path): Fetch files from a directory in the project.
+    """
+
     def get_all_files_in_directory(self, directory):
         """
         Get all files from a single directory (non-recursively).
@@ -33,7 +49,7 @@ class UEFileFunctionalities:
         project_path = unreal.Paths.project_dir().rstrip("/")
         return project_path.split("../")[-1]
     
-    def fetch_files_from_dir_in_project(self, dir, project_path):
+    def fetch_files_from_dir_in_project(self, dir, project_path, mode="windows"):
         """
         Fetch files from a directory in the project.
 
@@ -44,6 +60,7 @@ class UEFileFunctionalities:
         Returns:
         - files_list (list): A list of file names in the directory.
         """
+
         # Check if the UE path exists in the project
         if unreal.EditorAssetLibrary.does_directory_exist(dir + "/"):
             if ("/Game" in dir):
@@ -52,10 +69,34 @@ class UEFileFunctionalities:
             else:
                 complete_path = "C:/" + project_path + "/Content" + dir
 
-        # Extract all files in the animation dir
-        return self.get_all_files_in_directory(complete_path)
+            if (mode == "windows"):
+                files = [complete_path + "/" + file for file in self.get_all_files_in_directory(complete_path)]
+            else:
+                files = [dir + file for file in self.get_all_files_in_directory(complete_path)]
+
+            return files
+
+        return []
+
+#########################################################################################################
+#                                            RecorderFuncs                                              #
+#########################################################################################################
 
 class TakeRecorder:
+    """
+    Class for recording functionality in Unreal Engine.
+
+    This class provides methods to start/stop recording and fetch the last recorded sequence and its assets.
+
+    Methods:
+    - __init__(self): Constructor method to initialize the TakeRecorder.
+    - start_recording(self): Start recording.
+    - stop_recording(self): Stop recording.
+    - fetch_last_recording(self): Fetch last recording.
+    - fetch_last_recording_assets(self): Fetch last recording assets.
+    - set_name_take(self, name): Set name for the recording take.
+    """
+
     def __init__(self):
         unreal.TakeRecorderBlueprintLibrary.open_take_recorder_panel()
         self.take_recorder_panel = unreal.TakeRecorderBlueprintLibrary.get_take_recorder_panel()
@@ -82,7 +123,7 @@ class TakeRecorder:
         """
         self.take_recorder_panel.stop_recording()
 
-    def fetch_last_recording(self):
+    def __fetch_last_recording(self):
         """
         Fetch last recording.
 
@@ -101,47 +142,29 @@ class TakeRecorder:
         - files_list (list): A list of file names of assets recorded in the last session.
         """
         # Fetch last recording path in UE path form
-        anim_dir = self.fetch_last_recording().get_path_name()
-        anim_dir = anim_dir.split(".")[0] + "_Subscenes/Animation"
+        anim_dir = self.__fetch_last_recording().get_path_name()
+        anim_dir = anim_dir.split(".")[0] + "_Subscenes/Animation/"
         project_path = self.UEFileFuncs.get_project_path()
 
-        return self.UEFileFuncs.fetch_files_from_dir_in_project(anim_dir, project_path)
+        return self.UEFileFuncs.fetch_files_from_dir_in_project(anim_dir, project_path, mode="UE")
 
-    def set_name_take(self, name):
-        take_metadata = self.takeMeta.get_slate()
-        print(take_metadata)
-        # Implement somehow
 
+
+#########################################################################################################
+#                                               TEST                                                    #
+#########################################################################################################
+
+curTakeRec = TakeRecorder()
 # curTakeRec.start_recording()
 # curTakeRec.stop_recording()
-curTakeRec = TakeRecorder()
-print('curTakeRec.fetch_last_recording_assets(): ', curTakeRec.fetch_last_recording_assets())
+files = curTakeRec.fetch_last_recording_assets()
+print('files: ', files)
 
+ass = '/Game/Cinematics/Takes/2024-02-29/Scene_1_2548_Subscenes/Animation/glassesGuysActorBP_Scene_1_2548'
+print(unreal.EditorAssetLibrary.does_asset_exist(ass))
 
-# does_directory_have_assets
-    
-# import unreal
+assetTool = unreal.AssetToolsHelpers.get_asset_tools()
+assetTool.export_assets([ass], "C:/Users/VICON/Desktop/test")
 
-# def export_animation(animation_path, export_path):
-#     # Load the animation
-#     animation = unreal.EditorAssetLibrary.load_asset(animation_path)
-
-#     if animation:
-#         # Create Animation Exporter FBX Settings
-#         exporter_settings = unreal.AnimationExporterFBXSettings()
-#         exporter_settings.anim_sequence = animation
-#         exporter_settings.export_file = export_path
-
-#         # Create Exporter
-#         exporter = unreal.Exporter()
-#         exporter.set_editor_property("animation_export_settings", exporter_settings)
-#         exporter.export()
-
-#         unreal.log("Animation exported successfully to: {}".format(export_path))
-#     else:
-#         unreal.log_error("Failed to load animation from path: {}".format(animation_path))
-
-# # Example usage:
-# animation_path = "/Game/Path/To/Your/Animation"
-# export_path = "/Game/Export/Path/YourAnimation.fbx"
-# export_animation(animation_path, export_path)
+bpFuncs = unreal.SequencerTools()
+bpFuncs.export_anim_sequence()
