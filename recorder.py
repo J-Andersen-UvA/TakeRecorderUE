@@ -17,6 +17,8 @@ def get_all_files_in_directory(directory):
     if os.path.exists(directory) and os.path.isdir(directory):
         # List all files in the directory
         files_list = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
+    else:
+        print("Not a valid dir")
 
     return files_list
 
@@ -49,23 +51,26 @@ class TakeRecorder:
         print(take_metadata)
         # Implement somehow
 
-curTakeRec = TakeRecorder()
 # curTakeRec.start_recording()
 # curTakeRec.stop_recording()
 # curTakeRec.fetch_last_recording().get_path_name()
-print('curTakeRec.fetch_last_recording().get_path_name(): ', curTakeRec.fetch_last_recording().get_path_name() + "_Subscenes/Animation")
-anim_dir = curTakeRec.fetch_last_recording().get_path_name() + "_Subscenes/Animation"
-print('anim_dir: ', anim_dir)
+curTakeRec = TakeRecorder()
+
+# Fetch last recording path in UE path form
+anim_dir = curTakeRec.fetch_last_recording().get_path_name()
+anim_dir = anim_dir.split(".")[0] + "_Subscenes/Animation"
+
+# Get project path in normal windows path form
 project_path = get_project_path().rstrip("/")
 project_path = project_path.split("../")[-1]
-print('project_path: ', project_path)
-all_files = get_all_files_in_directory("C:/" + project_path + anim_dir + "/")
-print('project_path + anim_dir: ', r"C:/" + project_path + "Content" + anim_dir + "/")
-print('unreal.EditorAssetLibrary.does_directory_exist(project_path): ', unreal.EditorAssetLibrary.does_directory_exist(r"C:/" + project_path + "Content" + anim_dir + "/"))
-print(all_files)
 
+# Check if the UE path exists in the project
+if unreal.EditorAssetLibrary.does_directory_exist(anim_dir + "/"):
+    # Get the complete path in windows form
+    complete_path = "C:/" + project_path + "/Content" + anim_dir.split("/Game")[1]
+    # Extract all files in the animation dir
+    all_files = get_all_files_in_directory(complete_path)
+    print(all_files)
 
-unreal.EditorAssetLibrary.does_directory_exist(unreal.Paths.project_dir())
-print('unreal.EditorAssetLibrary.does_directory_exist(unreal.Paths.project_dir()): ', unreal.EditorAssetLibrary.does_directory_exist(unreal.Paths.project_dir().strip("../")[-1]))
 
 # does_directory_have_assets
