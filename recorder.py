@@ -2,6 +2,7 @@ import unreal
 import os
 import time
 import threading
+import sys
 
 #########################################################################################################
 #                                            UEFileManager                                              #
@@ -184,11 +185,13 @@ class TakeRecorder(unreal.Object):
 
 
 class unrealAsyncFuncs:
-    def __init__(self, unrealClass=None, callback=None):
+
+    def __init__(self, unrealClass=None, callback=None, doneCallback=None):
         self.frame_count = 0
         self.max_count = 101
         self.callback = callback
         self.unrealClass = unrealClass
+        self.doneCallback = doneCallback
 
     def start(self) -> None:
         if not callable(self.unrealClass):
@@ -200,6 +203,8 @@ class unrealAsyncFuncs:
 
     def stop(self) -> None:
         unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
+        if self.doneCallback:
+            self.doneCallback(self)
 
     def tick(self, delta_time: float) -> None:
         if self.callback:
@@ -217,10 +222,15 @@ def make_check_rec(lala):
     print("recording: ", recordCounter[0])
     recordCounter[0] += 1
 
-    if recordCounter[0] > 50:
+    if lala.frame_count > 50:
         if tk.is_recording():
             tk.stop_recording()
         lala.stop()
+
+
+def export_asset(lala):
+    files = tk.fetch_last_recording_assets()
+    print(files)
 
 
 #########################################################################################################
@@ -228,24 +238,15 @@ def make_check_rec(lala):
 #########################################################################################################
 
 
-# start recording
-tk.start_recording()
-
-lala = unrealAsyncFuncs(tk.is_recording, callback=make_check_rec)
-
-
+# first check if it is recording
+if tk.is_recording():
+    sys.exit()
+else:
+    tk.start_recording()
+# then check if it is recording and then export asset files
+lala = unrealAsyncFuncs(tk.is_recording, callback=make_check_rec, doneCallback=export_asset)
 # Start the async function
 lala.start()
-
-# # Start background task in a separate thread
-# thread = threading.Thread(target=background_task)
-# thread.start()
-
-# # Start the main loop
-# main_loop()
-
-# # Wait for the background thread to finish
-# thread.join()
 
 
 # curTakeRec = TakeRecorder()
