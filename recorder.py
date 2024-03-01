@@ -130,6 +130,8 @@ class TakeRecorder(unreal.Object):
         return True
 
     def is_recording(self):
+        lala = unreal.TakeRecorderBlueprintLibrary.is_recording()
+        print(lala)
         return unreal.TakeRecorderBlueprintLibrary.is_recording()
 
     def start_recording(self):
@@ -182,20 +184,15 @@ class TakeRecorder(unreal.Object):
 
 
 class unrealAsyncFuncs:
-    """
-    Class for async functions in Unreal Engine.
-    """
-
     def __init__(self, unrealClass=None, callback=None):
         self.frame_count = 0
-        self.max_count = 1000
+        self.max_count = 101
         self.callback = callback
         self.unrealClass = unrealClass
 
-        if not callable(self.unrealClass):
-            return False
-
     def start(self) -> None:
+        if not callable(self.unrealClass):
+            raise ValueError("unrealClass must be callable")
         self.slate_post_tick_handle = unreal.register_slate_post_tick_callback(
             self.tick
         )
@@ -205,45 +202,40 @@ class unrealAsyncFuncs:
         unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
 
     def tick(self, delta_time: float) -> None:
-        if self.unrealClass and self.callback:
-            self.callback(self.unrealClass())
+        if self.callback:
+            self.callback(self)
         self.frame_count += 1
         if self.frame_count >= self.max_count:
-            unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
+            self.stop()
 
 
-recordCounter = 0
+recordCounter = [0]
+tk = TakeRecorder()
 
 
-def make_check_rec():
-    recordCounter = [0]
+def make_check_rec(lala):
+    print("recording: ", recordCounter[0])
+    recordCounter[0] += 1
 
-    def check_rec(result):
-        print("recording: ", result)
-        recordCounter[0] += 1
-
-        if recordCounter[0] > 100:
+    if recordCounter[0] > 50:
+        if tk.is_recording():
             tk.stop_recording()
-            unrealAsyncFuncs().stop()
-            print("stopped recording")
-
-    return check_rec
+        lala.stop()
 
 
 #########################################################################################################
 #                                               TEST                                                    #
 #########################################################################################################
 
-tk = TakeRecorder()
-
 
 # start recording
 tk.start_recording()
 
-stateful_check_rec = make_check_rec()
-# check recording status
-unrealAsyncFuncs(tk.is_recording, callback=stateful_check_rec).start()
+lala = unrealAsyncFuncs(tk.is_recording, callback=make_check_rec)
 
+
+# Start the async function
+lala.start()
 
 # # Start background task in a separate thread
 # thread = threading.Thread(target=background_task)
