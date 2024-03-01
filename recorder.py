@@ -99,7 +99,7 @@ class UEFileFunctionalities:
 #########################################################################################################
 
 
-class TakeRecorder(unreal.Object):
+class TakeRecorder:
     """
     Class for recording functionality in Unreal Engine.
 
@@ -151,7 +151,7 @@ class TakeRecorder(unreal.Object):
         """
         self.take_recorder_panel.stop_recording()
 
-    def __fetch_last_recording(self):
+    def fetch_last_recording(self):
         """
         Fetch last recording.
 
@@ -170,13 +170,29 @@ class TakeRecorder(unreal.Object):
         - files_list (list): A list of file names of assets recorded in the last session.
         """
         # Fetch last recording path in UE path form
-        anim_dir = self.__fetch_last_recording().get_path_name()
+        anim_dir = self.fetch_last_recording().get_path_name()
         anim_dir = anim_dir.split(".")[0] + "_Subscenes/Animation/"
         project_path = self.UEFileFuncs.get_project_path()
 
         return self.UEFileFuncs.fetch_files_from_dir_in_project(
             anim_dir, project_path, mode="UE"
         )
+
+
+class SequencerTools:
+
+    def __init__(self, rootSequence, levelSqeuence, file):
+
+        self.params = unreal.SequencerExportFBXParams(
+            world=unreal.EditorLevelLibrary.get_editor_world(),
+            root_sequence=rootSequence,
+            sequence=levelSqeuence,
+            fbx_file_name=file,
+        )
+        self.execute_export()
+
+    def execute_export(self):
+        return unreal.SequencerTools.export_level_sequence_fbx(params=self.params)
 
 
 #########################################################################################################
@@ -228,28 +244,43 @@ def make_check_rec(lala):
         lala.stop()
 
 
-def export_asset(lala):
-    files = tk.fetch_last_recording_assets()
-    print(files)
-
-
 #########################################################################################################
 #                                               TEST                                                    #
 #########################################################################################################
 
 
-# first check if it is recording
-if tk.is_recording():
-    sys.exit()
-else:
-    tk.start_recording()
-# then check if it is recording and then export asset files
-lala = unrealAsyncFuncs(tk.is_recording, callback=make_check_rec, doneCallback=export_asset)
-# Start the async function
-lala.start()
+def execExport(lala):
+    print(
+        "Exported ->",
+        SequencerTools(
+            rootSequence=tk.fetch_last_recording(),
+            levelSqeuence=tk.fetch_last_recording(),
+            file="C:\\Users\\gotters\\lala.fbx",
+        ),
+    )
 
 
-# curTakeRec = TakeRecorder()
+disableRecording = True
+
+if disableRecording:
+    # first check if it is recording
+    if tk.is_recording():
+        sys.exit()
+    else:
+        tk.start_recording()
+    # then check if it is recording and then export asset files
+    lala = unrealAsyncFuncs(
+        tk.is_recording, callback=make_check_rec, doneCallback=execExport
+    )
+    # Start the async function
+    lala.start()
+
+print(tk.fetch_last_recording().get_path_name())
+
+
+#
+# curTa
+# keRec = TakeRecorder()
 # # curTakeRec.start_recording()
 # # curTakeRec.stop_recording()
 # files = curTakeRec.fetch_last_recording_assets()
