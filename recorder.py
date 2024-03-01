@@ -1,5 +1,7 @@
 import unreal
 import os
+import time
+import threading
 
 #########################################################################################################
 #                                            UEFileManager                                              #
@@ -33,7 +35,11 @@ class UEFileFunctionalities:
         # Check if the directory exists
         if os.path.exists(directory) and os.path.isdir(directory):
             # List all files in the directory
-            files_list = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
+            files_list = [
+                f
+                for f in os.listdir(directory)
+                if os.path.isfile(os.path.join(directory, f))
+            ]
         else:
             print("Not a valid dir")
 
@@ -48,7 +54,7 @@ class UEFileFunctionalities:
         """
         project_path = unreal.Paths.project_dir().rstrip("/")
         return project_path.split("../")[-1]
-    
+
     def fetch_files_from_dir_in_project(self, dir, project_path, mode="windows"):
         """
         Fetch files from a directory in the project.
@@ -63,26 +69,36 @@ class UEFileFunctionalities:
 
         # Check if the UE path exists in the project
         if unreal.EditorAssetLibrary.does_directory_exist(dir + "/"):
-            if ("/Game" in dir):
+            if "/Game" in dir:
                 # Get the complete path in windows form
-                complete_path = "C:/" + project_path + "/Content" + dir.split("/Game")[1]
+                complete_path = (
+                    "C:/" + project_path + "/Content" + dir.split("/Game")[1]
+                )
             else:
                 complete_path = "C:/" + project_path + "/Content" + dir
 
-            if (mode == "windows"):
-                files = [complete_path + "/" + file for file in self.get_all_files_in_directory(complete_path)]
+            if mode == "windows":
+                files = [
+                    complete_path + "/" + file
+                    for file in self.get_all_files_in_directory(complete_path)
+                ]
             else:
-                files = [dir + file for file in self.get_all_files_in_directory(complete_path)]
+                files = [
+                    dir + file
+                    for file in self.get_all_files_in_directory(complete_path)
+                ]
 
             return files
 
         return []
 
+
 #########################################################################################################
 #                                            RecorderFuncs                                              #
 #########################################################################################################
 
-class TakeRecorder:
+
+class TakeRecorder(unreal.Object):
     """
     Class for recording functionality in Unreal Engine.
 
@@ -99,13 +115,22 @@ class TakeRecorder:
 
     def __init__(self):
         unreal.TakeRecorderBlueprintLibrary.open_take_recorder_panel()
-        self.take_recorder_panel = unreal.TakeRecorderBlueprintLibrary.get_take_recorder_panel()
+        self.take_recorder_panel = (
+            unreal.TakeRecorderBlueprintLibrary.get_take_recorder_panel()
+        )
 
         # a = unreal.LayersSubsystem()
         # self.world = a.get_world()
         self.takeMeta = unreal.TakeMetaData()
 
         self.UEFileFuncs = UEFileFunctionalities()
+
+    # make it callable
+    def __call__(self):
+        return True
+
+    def is_recording(self):
+        return unreal.TakeRecorderBlueprintLibrary.is_recording()
 
     def start_recording(self):
         """
@@ -146,25 +171,116 @@ class TakeRecorder:
         anim_dir = anim_dir.split(".")[0] + "_Subscenes/Animation/"
         project_path = self.UEFileFuncs.get_project_path()
 
-        return self.UEFileFuncs.fetch_files_from_dir_in_project(anim_dir, project_path, mode="UE")
+        return self.UEFileFuncs.fetch_files_from_dir_in_project(
+            anim_dir, project_path, mode="UE"
+        )
 
+
+#########################################################################################################
+#                                            asyncFuncs                                                 #
+#########################################################################################################
+
+
+class unrealAsyncFuncs:
+    """
+    Class for async functions in Unreal Engine.
+    """
+
+    def __init__(self, unrealClass=None, callback=None):
+        self.frame_count = 0
+        self.max_count = 1000
+        self.callback = callback
+        self.unrealClass = unrealClass
+
+        if not callable(self.unrealClass):
+            return False
+
+    def start(self) -> None:
+        self.slate_post_tick_handle = unreal.register_slate_post_tick_callback(
+            self.tick
+        )
+        self.frame_count = 0
+
+    def stop(self) -> None:
+        unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
+
+    def tick(self, delta_time: float) -> None:
+        if self.unrealClass and self.callback:
+            self.callback(self.unrealClass())
+        self.frame_count += 1
+        if self.frame_count >= self.max_count:
+            unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
+
+
+recordCounter = 0
+
+
+def make_check_rec():
+    recordCounter = [0]
+
+    def check_rec(result):
+        print("recording: ", result)
+        recordCounter[0] += 1
+
+        if recordCounter[0] > 100:
+            tk.stop_recording()
+            unrealAsyncFuncs().stop()
+            print("stopped recording")
+
+    return check_rec
 
 
 #########################################################################################################
 #                                               TEST                                                    #
 #########################################################################################################
 
-curTakeRec = TakeRecorder()
-# curTakeRec.start_recording()
-# curTakeRec.stop_recording()
-files = curTakeRec.fetch_last_recording_assets()
-print('files: ', files)
+tk = TakeRecorder()
 
-ass = '/Game/Cinematics/Takes/2024-02-29/Scene_1_2548_Subscenes/Animation/glassesGuysActorBP_Scene_1_2548'
-print(unreal.EditorAssetLibrary.does_asset_exist(ass))
 
-assetTool = unreal.AssetToolsHelpers.get_asset_tools()
-assetTool.export_assets([ass], "C:/Users/VICON/Desktop/test")
+# start recording
+tk.start_recording()
 
-bpFuncs = unreal.SequencerTools()
-bpFuncs.export_anim_sequence()
+stateful_check_rec = make_check_rec()
+# check recording status
+unrealAsyncFuncs(tk.is_recording, callback=stateful_check_rec).start()
+
+
+# # Start background task in a separate thread
+# thread = threading.Thread(target=background_task)
+# thread.start()
+
+# # Start the main loop
+# main_loop()
+
+# # Wait for the background thread to finish
+# thread.join()
+
+
+# curTakeRec = TakeRecorder()
+# # curTakeRec.start_recording()
+# # curTakeRec.stop_recording()
+# files = curTakeRec.fetch_last_recording_assets()
+# print('files: ', files)
+
+# ass = '/Game/Cinematics/Takes/2024-02-29/Scene_1_2548_Subscenes/Animation/glassesGuysActorBP_Scene_1_2548'
+# print(unreal.EditorAssetLibrary.does_asset_exist(ass))
+
+# assetTool = unreal.AssetToolsHelpers.get_asset_tools()
+# assetTool.export_assets([ass], "C:/Users/VICON/Desktop/test")
+
+# bpFuncs = unreal.SequencerTools()
+# bpFuncs.export_anim_sequence()
+
+
+# Start record
+
+# before start record, check if:
+# doesnt it already start record?
+# def recordStartup():
+#     tk = TakeRecorder()
+#     if not tk.is_recording():
+#
+# else:
+#     tk.stop_recording()
+#     #go back to start of function
+#     recordStartup()
