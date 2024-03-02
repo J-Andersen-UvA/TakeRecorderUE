@@ -3,6 +3,12 @@ import os
 import time
 import threading
 import sys
+import aiohttp
+import asyncio
+import httpx
+import websocket
+import subprocess
+from multiprocessing import Process, Queue
 
 #########################################################################################################
 #                                            UEFileManager                                              #
@@ -122,13 +128,29 @@ class TakeRecorder:
 
         # a = unreal.LayersSubsystem()
         # self.world = a.get_world()
-        self.takeMeta = unreal.TakeMetaData()
+        self.levelSequence = unreal.LevelSequence
+        self.metadata = unreal.TakeMetaData
 
         self.UEFileFuncs = UEFileFunctionalities()
+        self.TakeRecorderBPL = unreal.TakeRecorderBlueprintLibrary()
 
     # make it callable
     def __call__(self):
         return True
+
+    def get_slate(self):
+
+        lala = self.TakeRecorderBPL.get_take_recorder_panel()
+        return lala.get_take_meta_data().get_slate()
+
+    def get_sources(self):
+        lala = self.TakeRecorderBPL.get_take_recorder_panel()
+        return lala.get_sources()
+
+    def get_slateTake(self):
+        lala = self.TakeRecorderBPL.get_take_recorder_panel()
+        lala.get_class()
+        return unreal.TakeMetaData().get_slate()
 
     def is_recording(self):
         lala = unreal.TakeRecorderBlueprintLibrary.is_recording()
@@ -179,6 +201,17 @@ class TakeRecorder:
         )
 
 
+class TakeRecorderSetActor:
+    def __init__(self):
+        self.takeRecorderAS = unreal.TakeRecorderActorSource()
+        self.takeRecorderAS.set_source_actor(
+            unreal.EditorLevelLibrary.get_all_level_actors()[0]
+        )
+
+        print(self.takeRecorderAS.get_source_actor().get_path_name())
+        print("init")
+
+
 class SequencerTools:
 
     def __init__(self, rootSequence, levelSqeuence, file):
@@ -199,15 +232,55 @@ class SequencerTools:
 #                                            asyncFuncs                                                 #
 #########################################################################################################
 
+startRecord = ""
+
+
+def setRecord(value=None):
+    global startRecord
+    if value:
+        startRecord = value
+    else:
+        return startRecord
+
+
+class keepRunningTakeRecorder:
+
+    def __init__(self):
+        self.startRecord = startRecord
+
+    def start(self) -> None:
+        self.slate_post_tick_handle = unreal.register_slate_post_tick_callback(
+            self.tick
+        )
+        print("started")
+
+    def stop(self) -> None:
+        unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
+
+    def tick(self, delta_time: float) -> None:
+        if setRecord() == "start":
+            setRecord("idle")
+            tk.start_recording()
+
+        if setRecord() == "stop":
+            setRecord("idle")
+            tk.stop_recording()
+
+
+keepRunningTakeRecorder().start()
+
 
 class unrealAsyncFuncs:
 
-    def __init__(self, unrealClass=None, callback=None, doneCallback=None):
+    def __init__(
+        self, unrealClass=None, callback=None, doneCallback=None, glossName=None
+    ):
         self.frame_count = 0
         self.max_count = 101
         self.callback = callback
         self.unrealClass = unrealClass
         self.doneCallback = doneCallback
+        self.glossName = glossName
 
     def start(self) -> None:
         if not callable(self.unrealClass):
@@ -244,28 +317,104 @@ def make_check_rec(lala):
         lala.stop()
 
 
-def execExport(lala):
-    print(
-        "Exported ->",
-        SequencerTools(
+#########################################################################################################
+#                                               FBX EXPORT AND SENDER                                   #
+#########################################################################################################
+
+
+class exportandSend:
+
+    def __init__(self, glossName):
+        self.glossName = "lala"
+        self.file = "C:\\Users\\gotters\\" + self.glossName + ".fbx"
+        self.execExport()
+
+    def execExport(self):
+
+        if SequencerTools(
             rootSequence=tk.fetch_last_recording(),
             levelSqeuence=tk.fetch_last_recording(),
-            file="C:\\Users\\gotters\\lala.fbx",
-        ),
-    )
+            file=self.file,
+        ):
+            pass
+
+        asyncio.run(
+            self.send_file_to_url(
+                self.file, "https://leffe.science.uva.nl:8043/fbx2glb/upload/"
+            )
+        )
+
+    def done(self, future):
+        print(future.result())
+
+    async def send_file_to_url(self, file_path, url):
+        print("Sending file...")
+        async with httpx.AsyncClient(verify=False) as client:
+            # Open the file and prepare it for sending. No need to use aiohttp.FormData with httpx.
+            with open(file_path, "rb") as file:
+                files = {"file": (file_path, file, "multipart/form-data")}
+                response = await client.post(
+                    url,
+                    files=files,
+                )  # 'verify=False' skips SSL verification.
+
+                # No need to check _is_multipart or to explicitly close the file; it's managed by the context manager.
+                print(response.text)
 
 
 #########################################################################################################
-#                                               TEST                                                    #
+#                                               WEBSOCKET CLIENT (YES CLIENT)                           #
+#########################################################################################################
+
+websocket.enableTrace(True)
+
+
+def on_close(ws, close_status_code, close_msg):
+    print("### closed ###")
+
+
+def on_message(ws, message):
+    global startRecord
+    if message == "startrecord":
+        print(setRecord("start"))
+    if message == "stoprecord":
+        print(setRecord("stop"))
+
+
+if len(sys.argv) < 2:
+    host = "ws://localhost:3000/"
+else:
+    host = sys.argv[1]
+
+ws = websocket.WebSocketApp(host, on_message=on_message, on_close=on_close)
+threading.Thread(target=ws.run_forever).start()
+
+
+#########################################################################################################
+#                                               PINEAPPLE AND AVOCADO TEST BED                          #
 #########################################################################################################
 
 # TODO:
 # Sequence export async?
 # Sequence export op root en level in orde?
 # implementatie websock, hoe?
-disableRecording = True
+# checken of er als source is ingeladen
+# checken of slate naam gewijzigd kan worden
+# 1. sequence panel in orde, 2. actor al ingeladen, 3. geen record bezig, 4. start record, 5. stop record, 6. export, 7. export sturen naar nodejs server
+# TODO: trigger met websocket
+# TODO automatically load:
+# livelink present
+# source actor present
 
-if disableRecording:
+
+enableRecording = False
+glossName = "asdasds"
+
+# set actor source
+
+TakeRecorderSetActor()
+
+if enableRecording:
     # first check if it is recording
     if tk.is_recording():
         sys.exit()
@@ -273,14 +422,13 @@ if disableRecording:
         tk.start_recording()
     # then check if it is recording and then export asset files
     lala = unrealAsyncFuncs(
-        tk.is_recording, callback=make_check_rec, doneCallback=execExport
+        tk.is_recording,
+        callback=make_check_rec,
+        doneCallback=exportandSend,
+        glossName=glossName,
     )
     # Start the async function
     lala.start()
-
-print(tk.fetch_last_recording().get_path_name())
-
-
 #
 # curTa
 # keRec = TakeRecorder()
