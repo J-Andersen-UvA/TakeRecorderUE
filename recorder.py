@@ -1,13 +1,13 @@
 import unreal
 import os
-import time
+# import time
 import threading
 import sys
-import aiohttp
+# import aiohttp
 import asyncio
 import httpx
 import websocket
-import subprocess
+# import subprocess
 from multiprocessing import Process, Queue
 
 #########################################################################################################
@@ -118,6 +118,12 @@ class TakeRecorder:
     - fetch_last_recording(self): Fetch last recording.
     - fetch_last_recording_assets(self): Fetch last recording assets.
     - set_name_take(self, name): Set name for the recording take.
+
+    - get_slate(self): Get the current slate str
+    - get_sources(self): Get the take recorder sourcs for the
+    current take recorder panel
+    - get_slate_from_take(self): get the slate from the take
+    - is_recording(self): check if we are recording currently
     """
 
     def __init__(self):
@@ -138,23 +144,24 @@ class TakeRecorder:
     def __call__(self):
         return True
 
-    def get_slate(self):
-
+    def get_slate(self) -> str:
+        """Retrieve the slate information from the take recorder panel."""
         lala = self.TakeRecorderBPL.get_take_recorder_panel()
         return lala.get_take_meta_data().get_slate()
 
     def get_sources(self):
+        """Retrieve the sources from the take recorder panel."""
         lala = self.TakeRecorderBPL.get_take_recorder_panel()
         return lala.get_sources()
 
-    def get_slateTake(self):
+    def get_slate_from_take(self) -> str:
+        """Retrieve the slate information from the current take."""
         lala = self.TakeRecorderBPL.get_take_recorder_panel()
         lala.get_class()
         return unreal.TakeMetaData().get_slate()
 
-    def is_recording(self):
-        lala = unreal.TakeRecorderBlueprintLibrary.is_recording()
-        print(lala)
+    def is_recording(self) -> bool:
+        """Check if recording is currently in progress."""
         return unreal.TakeRecorderBlueprintLibrary.is_recording()
 
     def start_recording(self):
@@ -213,9 +220,18 @@ class TakeRecorderSetActor:
 
 
 class SequencerTools:
-
     def __init__(self, rootSequence, levelSqeuence, file):
+        """
+        Initialize a SequencerTools instance.
 
+        Params:
+        - rootSequence (unreal.MovieSceneSequence): The root sequence to export.
+        - levelSequence (unreal.LevelSequence): The level sequence to export.
+        - file (str): The file path to export the sequence to.
+
+        Initializes 'params' with SequencerExportFBXParams containing the provided
+        parameters and executes the export.
+        """
         self.params = unreal.SequencerExportFBXParams(
             world=unreal.EditorLevelLibrary.get_editor_world(),
             root_sequence=rootSequence,
@@ -224,7 +240,13 @@ class SequencerTools:
         )
         self.execute_export()
 
-    def execute_export(self):
+    def execute_export(self) -> bool:
+        """
+        Execute the export of the level sequence to FBX.
+
+        Returns:
+            bool: True if the export was successful, False otherwise.
+        """
         return unreal.SequencerTools.export_level_sequence_fbx(params=self.params)
 
 
@@ -232,32 +254,63 @@ class SequencerTools:
 #                                            asyncFuncs                                                 #
 #########################################################################################################
 
-startRecord = ""
+startRecordStatus = ""
 
 
 def setRecord(value=None):
-    global startRecord
+    global startRecordStatus
     if value:
-        startRecord = value
+        startRecordStatus = value
     else:
-        return startRecord
+        return startRecordStatus
 
 
-class keepRunningTakeRecorder:
+class KeepRunningTakeRecorder:
+    """
+    Utility class for managing continuous recording with the Take Recorder.
+
+    This class provides functionality to start and stop recording using the
+    provided 'startRecordStatus' function. It utilizes Slate post-tick callbacks
+    to continuously monitor the recording state and take appropriate actions.
+
+    Attributes:
+    - startRecordStatus: Status var to start recording.
+
+    Methods:
+    - start(): Start the take recorder.
+    - stop(): Stop the take recorder.
+    - tick(delta_time: float): Perform actions based on the current state.
+    """
 
     def __init__(self):
-        self.startRecord = startRecord
+        self.startRecordStatus = startRecordStatus
 
     def start(self) -> None:
+        """
+        Start the take recorder.
+
+        Registers a Slate post-tick callback to execute 'tick' method.
+        """
         self.slate_post_tick_handle = unreal.register_slate_post_tick_callback(
             self.tick
         )
         print("started")
 
     def stop(self) -> None:
+        """
+        Stop the take recorder.
+
+        Unregisters the Slate post-tick callback.
+        """
         unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
 
     def tick(self, delta_time: float) -> None:
+        """
+        Perform actions based on the current state.
+
+        If the recording state is "start", begin recording.
+        If the recording state is "stop", stop recording.
+        """
         if setRecord() == "start":
             setRecord("idle")
             tk.start_recording()
@@ -267,11 +320,32 @@ class keepRunningTakeRecorder:
             tk.stop_recording()
 
 
-keepRunningTakeRecorder().start()
+KeepRunningTakeRecorder().start()
 
 
-class unrealAsyncFuncs:
+class UnrealAsyncFuncs:
+    """
+    Utility class for asynchronous execution of Unreal Engine functions.
 
+    This class allows for asynchronous execution of Unreal Engine functions
+    by registering a Slate post-tick callback and executing the provided
+    callback function during each tick. It provides methods to start and
+    stop the asynchronous execution.
+
+    Attributes:
+    - frame_count (int): Counter for the number of ticks.
+    - max_count (int): Maximum number of ticks before stopping.
+    - callback (function): Callback function to execute during each tick.
+    - unrealClass (object): Instance of the Unreal Engine class to execute.
+    - doneCallback (function): Callback function to execute when done.
+    - glossName (str): Name for the asynchronous function (optional).
+
+    Methods:
+    - start(): Start the asynchronous execution.
+    - stop(): Stop the asynchronous execution.
+    - tick(delta_time: float): Callback function executed during each tick.
+        Increments the tick counter and stops execution if max_count is reached.
+    """
     def __init__(
         self, unrealClass=None, callback=None, doneCallback=None, glossName=None
     ):
@@ -283,6 +357,12 @@ class unrealAsyncFuncs:
         self.glossName = glossName
 
     def start(self) -> None:
+        """
+        Start the asynchronous execution.
+
+        Registers a Slate post-tick callback to execute the 'tick' method.
+        Resets the frame count.
+        """
         if not callable(self.unrealClass):
             raise ValueError("unrealClass must be callable")
         self.slate_post_tick_handle = unreal.register_slate_post_tick_callback(
@@ -291,11 +371,23 @@ class unrealAsyncFuncs:
         self.frame_count = 0
 
     def stop(self) -> None:
+        """
+        Stop the asynchronous execution.
+
+        Unregisters the Slate post-tick callback.
+        Executes the 'doneCallback' if provided.
+        """
         unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
         if self.doneCallback:
             self.doneCallback(self)
 
     def tick(self, delta_time: float) -> None:
+        """
+        Callback function executed during each tick.
+
+        Increments the tick counter and stops execution if max_count is reached.
+        Executes the 'callback' function if provided.
+        """
         if self.callback:
             self.callback(self)
         self.frame_count += 1
@@ -322,15 +414,34 @@ def make_check_rec(lala):
 #########################################################################################################
 
 
-class exportandSend:
+class ExportandSend:
+    """
+    Utility class for exporting and sending files asynchronously.
 
+    This class provides methods to execute export operations and send files
+    asynchronously to a specified URL.
+
+    Attributes:
+    - glossName (str): Name used for the file export.
+    - file (str): File path for the export operation.
+
+    Methods:
+    - execExport(): Execute the export operation.
+    - done(future): Callback function executed when the operation is done.
+    - send_file_to_url(file_path, url): Asynchronously send a file to a URL.
+    """
     def __init__(self, glossName):
         self.glossName = "lala"
         self.file = "C:\\Users\\gotters\\" + self.glossName + ".fbx"
         self.execExport()
 
-    def execExport(self):
+    def execExport(self) -> None:
+        """
+        Execute the export operation.
 
+        Creates a SequencerTools instance to fetch the last recording and
+        export it using asyncio to send the file to a specified URL.
+        """
         if SequencerTools(
             rootSequence=tk.fetch_last_recording(),
             levelSqeuence=tk.fetch_last_recording(),
@@ -348,6 +459,15 @@ class exportandSend:
         print(future.result())
 
     async def send_file_to_url(self, file_path, url):
+        """
+        Asynchronously send a file to a URL.
+
+        Parameters:
+        - file_path (str): File path of the file to send.
+        - url (str): URL to send the file to.
+
+        Prints the response from the server after sending the file.
+        """
         print("Sending file...")
         async with httpx.AsyncClient(verify=False) as client:
             # Open the file and prepare it for sending. No need to use aiohttp.FormData with httpx.
@@ -374,7 +494,7 @@ def on_close(ws, close_status_code, close_msg):
 
 
 def on_message(ws, message):
-    global startRecord
+    global startRecordStatus
     if message == "startrecord":
         print(setRecord("start"))
     if message == "stoprecord":
@@ -421,10 +541,10 @@ if enableRecording:
     else:
         tk.start_recording()
     # then check if it is recording and then export asset files
-    lala = unrealAsyncFuncs(
+    lala = UnrealAsyncFuncs(
         tk.is_recording,
         callback=make_check_rec,
-        doneCallback=exportandSend,
+        doneCallback=ExportandSend,
         glossName=glossName,
     )
     # Start the async function
