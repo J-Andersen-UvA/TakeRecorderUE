@@ -499,6 +499,10 @@ def on_message(ws, message):
         print(setRecord("start"))
     if message == "stoprecord":
         print(setRecord("stop"))
+    if message == "fbxExport":
+        print("fbxExport")
+        ExportandSend("lala")
+    
 
 
 if len(sys.argv) < 2:
