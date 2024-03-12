@@ -10,7 +10,7 @@ import asyncio
 import httpx
 import websocket
 import ssl
-
+import json
 
 # import subprocess
 from multiprocessing import Process, Queue
@@ -184,7 +184,7 @@ class TakeRecorder:
         This function stops the recording process using the take recorder panel.
         """
         self.take_recorder_panel.stop_recording()
-    
+
     def start_replaying(self, cur_level_sequence_actor):
         """
         Start replaying.
@@ -192,7 +192,9 @@ class TakeRecorder:
         This function starts the replaying process using the take recorder panel.
         """
         # call custom event from cur_level_sequence_actor to stop replay system (Event Stop Record)
-        cur_level_sequence_actor.call_method("Event Replay Recording", args=(self.fetch_last_recording(), ))
+        cur_level_sequence_actor.call_method(
+            "Event Replay Recording", args=(self.fetch_last_recording(),)
+        )
 
     def fetch_last_recording(self):
         """
@@ -231,8 +233,8 @@ class TakeRecorderSetActor:
 
         print(self.takeRecorderAS.get_source_actor().get_path_name())
         print("init")
-    
-    #Get level sequence actor by name
+
+    # Get level sequence actor by name
     def set_level_sequence_actor_by_name(self, name):
         level_sequence_actors = unreal.EditorLevelLibrary.get_all_level_actors()
         for level_sequence_actor in level_sequence_actors:
@@ -241,6 +243,7 @@ class TakeRecorderSetActor:
                 return level_sequence_actor
         print("Name: " + name + "not found")
         return None
+
 
 class SequencerTools:
     def __init__(self, rootSequence, levelSqeuence, file):
@@ -271,6 +274,14 @@ class SequencerTools:
             bool: True if the export was successful, False otherwise.
         """
         return unreal.SequencerTools.export_level_sequence_fbx(params=self.params)
+
+
+def get_level_sequence_actor_by_name(name):
+    level_sequence_actors = unreal.EditorLevelLibrary.get_all_level_actors()
+    for level_sequence_actor in level_sequence_actors:
+        if level_sequence_actor.get_name() == name:
+            return level_sequence_actor
+    return None
 
 
 #########################################################################################################
@@ -345,6 +356,12 @@ class KeepRunningTakeRecorder:
         if setRecord() == "fbxExport":
             setRecord("idle")
             ExportandSend("lala")
+        if setRecord() == "replayRecord":
+            setRecord("idle")
+            tk.start_replaying(
+                get_level_sequence_actor_by_name("GlassesGuyRecord_C_1"),
+            )
+            print("replay")
 
 
 KeepRunningTakeRecorder().start()
@@ -525,14 +542,16 @@ def on_close(ws, close_status_code, close_msg):
 
 def on_message(ws, message):
     global startRecordStatus
-    if message == "startrecord":
+    message = json.loads(message)
+    print(message)
+    if message["set"] == "startRecord":
         print(setRecord("start"))
-    if message == "stoprecord":
+    if message["set"] == "stopRecord":
         print(setRecord("stop"))
-    if message == "fbxExport":
-        print(
-            setRecord("fbxExport")
-        )  # dat moet dus eigenlijk niet besefde ik me, ik moet setRecord instellen met fbxExport
+    if message["set"] == "fbxExport":
+        print(setRecord("fbxExport"))
+    if message["set"] == "replayRecord":
+        print(setRecord("replayRecord"))
 
 
 if len(sys.argv) < 2:
