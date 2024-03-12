@@ -1,5 +1,6 @@
 import websocket
 import ssl
+import json
 
 host = "wss://leffe.science.uva.nl:8043/unrealServer/"
 
@@ -18,7 +19,9 @@ def on_close(ws):
 
 def on_open(ws):
     print("Connection established")
-    ws.send("Hello, server!")
+    message = "Hello, server!"
+    data = json.dumps({"msg": message})
+    ws.send(data)
 
 
 if __name__ == "__main__":
