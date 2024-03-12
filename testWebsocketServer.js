@@ -1,6 +1,6 @@
 const WebSocket = require('ws');
 
-const wss = new WebSocket.Server({ port: 3000 });
+const wss = new WebSocket.Server({ port: 3002 });
 let intervalId;  // This will hold the interval ID for clearing it later
 
 wss.on('connection', function connection(ws) {
@@ -27,7 +27,7 @@ intervalId = setInterval(() => {
             return;
           }
           console.log('Sent command: stoprecord');
-          ws.send("fbxExport", function ack(error) {
+          ws.send("fbxExport:test123.fbx", function ack(error) {
             if (error) {
               console.error('Error sending "exit":', error);
               return;

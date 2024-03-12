@@ -321,7 +321,7 @@ class KeepRunningTakeRecorder:
         if setRecord() == "stop":
             setRecord("idle")
             tk.stop_recording()
-        
+
         if setRecord() == "fbxExport":
             setRecord("idle")
             ExportandSend("lala")
@@ -509,12 +509,14 @@ def on_message(ws, message):
         print(setRecord("start"))
     if message == "stoprecord":
         print(setRecord("stop"))
-    if message == "fbxExport":                                          
-        print(setRecord("fbxExport")) #dat moet dus eigenlijk niet besefde ik me, ik moet setRecord instellen met fbxExport
+    if message == "fbxExport":
+        print(
+            setRecord("fbxExport")
+        )  # dat moet dus eigenlijk niet besefde ik me, ik moet setRecord instellen met fbxExport
 
 
 if len(sys.argv) < 2:
-    host = "ws://localhost:3000/"
+    host = "ws://https://leffe.science.uva.nl:8043/unrealServer/"
 else:
     host = sys.argv[1]
 
