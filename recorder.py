@@ -321,6 +321,10 @@ class KeepRunningTakeRecorder:
         if setRecord() == "stop":
             setRecord("idle")
             tk.stop_recording()
+        
+        if setRecord() == "fbxExport":
+            setRecord("idle")
+            ExportandSend("lala")
 
 
 KeepRunningTakeRecorder().start()
@@ -505,9 +509,8 @@ def on_message(ws, message):
         print(setRecord("start"))
     if message == "stoprecord":
         print(setRecord("stop"))
-    if message == "fbxExport":
-        print("fbxExport")
-        ExportandSend("lala")
+    if message == "fbxExport":                                          
+        print(setRecord("fbxExport")) #dat moet dus eigenlijk niet besefde ik me, ik moet setRecord instellen met fbxExport
 
 
 if len(sys.argv) < 2:
