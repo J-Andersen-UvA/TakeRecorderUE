@@ -184,6 +184,15 @@ class TakeRecorder:
         This function stops the recording process using the take recorder panel.
         """
         self.take_recorder_panel.stop_recording()
+    
+    def start_replaying(self, cur_level_sequence_actor):
+        """
+        Start replaying.
+
+        This function starts the replaying process using the take recorder panel.
+        """
+        # call custom event from cur_level_sequence_actor to stop replay system (Event Stop Record)
+        cur_level_sequence_actor.call_method("Event Replay Recording", args=(self.fetch_last_recording(), ))
 
     def fetch_last_recording(self):
         """
@@ -222,7 +231,16 @@ class TakeRecorderSetActor:
 
         print(self.takeRecorderAS.get_source_actor().get_path_name())
         print("init")
-
+    
+    #Get level sequence actor by name
+    def set_level_sequence_actor_by_name(self, name):
+        level_sequence_actors = unreal.EditorLevelLibrary.get_all_level_actors()
+        for level_sequence_actor in level_sequence_actors:
+            if level_sequence_actor.get_name() == name:
+                self.takeRecorderAS.set_source_actor(level_sequence_actor)
+                return level_sequence_actor
+        print("Name: " + name + "not found")
+        return None
 
 class SequencerTools:
     def __init__(self, rootSequence, levelSqeuence, file):
@@ -443,7 +461,7 @@ class ExportandSend:
 
     def __init__(self, glossName):
         self.glossName = "lala"
-        self.file = "C:\\Users\\gotters\\" + self.glossName + ".fbx"
+        self.file = "D:\\RecordingsUE\\" + self.glossName + ".fbx"
         self.execExport()
 
     def execExport(self) -> None:
