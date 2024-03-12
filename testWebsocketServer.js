@@ -27,6 +27,13 @@ intervalId = setInterval(() => {
             return;
           }
           console.log('Sent command: stoprecord');
+          ws.send("fbxExport", function ack(error) {
+            if (error) {
+              console.error('Error sending "exit":', error);
+              return;
+            }
+            console.log('Sent command: exit');
+          });
         });
       }
     }, 5000); // 5000 milliseconds = 5 seconds
