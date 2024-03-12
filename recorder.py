@@ -1,12 +1,15 @@
 import unreal
 import os
+
 # import time
 import threading
 import sys
+
 # import aiohttp
 import asyncio
 import httpx
 import websocket
+
 # import subprocess
 from multiprocessing import Process, Queue
 
@@ -346,6 +349,7 @@ class UnrealAsyncFuncs:
     - tick(delta_time: float): Callback function executed during each tick.
         Increments the tick counter and stops execution if max_count is reached.
     """
+
     def __init__(
         self, unrealClass=None, callback=None, doneCallback=None, glossName=None
     ):
@@ -430,6 +434,7 @@ class ExportandSend:
     - done(future): Callback function executed when the operation is done.
     - send_file_to_url(file_path, url): Asynchronously send a file to a URL.
     """
+
     def __init__(self, glossName):
         self.glossName = "lala"
         self.file = "C:\\Users\\gotters\\" + self.glossName + ".fbx"
@@ -490,7 +495,8 @@ websocket.enableTrace(True)
 
 
 def on_close(ws, close_status_code, close_msg):
-    print("### closed ###")
+    print("### CLOSED AND KILLED PYTHON PROCESS ###")
+    sys.exit()
 
 
 def on_message(ws, message):
@@ -502,7 +508,6 @@ def on_message(ws, message):
     if message == "fbxExport":
         print("fbxExport")
         ExportandSend("lala")
-    
 
 
 if len(sys.argv) < 2:
