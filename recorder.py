@@ -9,6 +9,8 @@ import sys
 import asyncio
 import httpx
 import websocket
+import ssl
+
 
 # import subprocess
 from multiprocessing import Process, Queue
@@ -516,13 +518,15 @@ def on_message(ws, message):
 
 
 if len(sys.argv) < 2:
-    host = "ws://https://leffe.science.uva.nl:8043/unrealServer/"
+    host = "wss://leffe.science.uva.nl:8043/unrealServer/"
 else:
     host = sys.argv[1]
 
 ws = websocket.WebSocketApp(host, on_message=on_message, on_close=on_close)
-threading.Thread(target=ws.run_forever).start()
-
+thread = threading.Thread(
+    target=ws.run_forever, kwargs={"sslopt": {"cert_reqs": ssl.CERT_NONE}}
+)
+thread.start()
 
 #########################################################################################################
 #                                               PINEAPPLE AND AVOCADO TEST BED                          #
