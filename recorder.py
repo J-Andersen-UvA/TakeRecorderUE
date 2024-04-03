@@ -546,13 +546,31 @@ def on_message(ws, message):
     print(message)
     if message["set"] == "startRecord":
         print(setRecord("start"))
+        #get last recording from takerecorder
+     
+        
     if message["set"] == "stopRecord":
         print(setRecord("stop"))
     if message["set"] == "fbxExport":
         print(setRecord("fbxExport"))
     if message["set"] == "replayRecord":
         print(setRecord("replayRecord"))
+        
+    if message["set"] == "exportLevelSequenceName":
+        print(tk.fetch_last_recording())
+        #send the last recording via ws 
+        last_record = tk.fetch_last_recording().get_full_name()
+        #create JSON object for ws
+        ws_JSON = {
+        "data": "glosName",
+        "glosName": last_record
+        }
+        print("##############################################")
+        print(ws_JSON)
+        print("##############################################")
 
+        ws.send(json.dumps(ws_JSON))
+        
 
 if len(sys.argv) < 2:
     host = "wss://leffe.science.uva.nl:8043/unrealServer/"
