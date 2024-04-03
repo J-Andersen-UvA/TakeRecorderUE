@@ -258,11 +258,25 @@ class SequencerTools:
         Initializes 'params' with SequencerExportFBXParams containing the provided
         parameters and executes the export.
         """
+        self.rootSequence = rootSequence
+        
+        sequence = unreal.load_asset(self.rootSequence, unreal.LevelSequence)
+        
+        
+        bindings = sequence.get_bindings()
+        tracks = sequence.get_tracks()
+        export_options = unreal.FbxExportOption()
+        export_options.ascii = True
+        export_options.level_of_detail = False
+ 
         self.params = unreal.SequencerExportFBXParams(
             world=unreal.EditorLevelLibrary.get_editor_world(),
-            root_sequence=rootSequence,
-            sequence=levelSqeuence,
+            root_sequence=sequence,
+            sequence=sequence,
             fbx_file_name=file,
+            bindings=bindings,
+            tracks=tracks,
+            export_options=export_options
         )
         self.execute_export()
 
@@ -506,12 +520,11 @@ class ExportandSend:
         
     def execExport(self) -> None:
         print(self.unreal_take)
-        sequence = unreal.load_asset(self.unreal_take, unreal.LevelSequence)
-        root_sequence = unreal.load_asset(self.unreal_take, unreal.LevelSequence)
+
                 
         if SequencerTools(
-            rootSequence=sequence,
-            levelSqeuence=root_sequence,
+            rootSequence=self.unreal_take,
+            levelSqeuence=self.unreal_take,
             file=self.file,
         ):
             pass
