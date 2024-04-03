@@ -289,7 +289,8 @@ def get_level_sequence_actor_by_name(name):
 #########################################################################################################
 
 startRecordStatus = ""
-
+global glossNameLS
+global levelSequenceName
 
 def setRecord(value=None):
     global startRecordStatus
@@ -297,6 +298,22 @@ def setRecord(value=None):
         startRecordStatus = value
     else:
         return startRecordStatus
+
+def setGlosName(glosName):
+    global glossNameLS
+    glossNameLS = glosName
+
+def setSequenceName(sequenceName):
+    global levelSequenceName
+    levelSequenceName = sequenceName
+    
+def getGlosName():
+    global glossNameLS
+    return glossNameLS
+
+def getSequenceName():
+    global levelSequenceName
+    return levelSequenceName
 
 
 class KeepRunningTakeRecorder:
@@ -362,6 +379,11 @@ class KeepRunningTakeRecorder:
                 get_level_sequence_actor_by_name("GlassesGuyRecord_C_1"),
             )
             print("replay")
+            
+        if setRecord() == "fbxExportName":
+            setRecord("idle")
+           
+            ExportandSend(getGlosName(), getSequenceName())
 
 
 KeepRunningTakeRecorder().start()
@@ -476,12 +498,31 @@ class ExportandSend:
     - send_file_to_url(file_path, url): Asynchronously send a file to a URL.
     """
 
-    def __init__(self, glossName):
-        self.glossName = "lala"
-        self.file = "D:\\RecordingsUE\\" + self.glossName + ".fbx"
+    def __init__(self, glossName, unreal_take):
+        self.glossName = glossName
+        self.unreal_take = unreal_take
+        self.file = "C:\\RecordingsUE\\" + self.glossName + ".fbx"
         self.execExport()
-
+        
     def execExport(self) -> None:
+        print(self.unreal_take)
+        sequence = unreal.load_asset(self.unreal_take, unreal.LevelSequence)
+        root_sequence = unreal.load_asset(self.unreal_take, unreal.LevelSequence)
+                
+        if SequencerTools(
+            rootSequence=sequence,
+            levelSqeuence=root_sequence,
+            file=self.file,
+        ):
+            pass
+
+        asyncio.run(
+            self.send_file_to_url(
+                self.file, "https://leffe.science.uva.nl:8043/fbx2glb/upload/"
+            )
+        )
+
+    def execExportLast(self) -> None:
         """
         Execute the export operation.
 
@@ -570,6 +611,18 @@ def on_message(ws, message):
         print("##############################################")
 
         ws.send(json.dumps(ws_JSON))
+        
+    if message["set"] == "fbxExportName":
+        print(setRecord("fbxExportName"))
+        setGlosName(message["glosName"])
+        setSequenceName(message["data"])
+        ws_JSON = {
+        "data": "fbxExportNameConfirmed",
+        "glosName": message["glosName"]
+        }
+        
+        ws.send(json.dumps(ws_JSON))
+        
         
 
 if len(sys.argv) < 2:
