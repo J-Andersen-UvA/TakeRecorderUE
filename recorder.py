@@ -11,7 +11,7 @@ import httpx
 import websocket
 import ssl
 import json
-
+import requests
 # import subprocess
 from multiprocessing import Process, Queue
 
@@ -368,7 +368,7 @@ class KeepRunningTakeRecorder:
         Unregisters the Slate post-tick callback.
         """
         unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
-
+        
     def tick(self, delta_time: float) -> None:
         """
         Perform actions based on the current state.
@@ -379,10 +379,23 @@ class KeepRunningTakeRecorder:
         if setRecord() == "start":
             setRecord("idle")
             tk.start_recording()
+            
+            ws_JSON = {
+            "handler": "startRecordingConfirmed",
+             }
+            ws.send(json.dumps(ws_JSON))
+            
 
         if setRecord() == "stop":
             setRecord("idle")
             tk.stop_recording()
+            
+            ws_JSON = {
+            "handler": "stopRecordingConfirmed",
+                }
+            ws.send(json.dumps(ws_JSON))
+            
+            
 
         if setRecord() == "fbxExport":
             setRecord("idle")
@@ -393,11 +406,27 @@ class KeepRunningTakeRecorder:
                 get_level_sequence_actor_by_name("GlassesGuyRecord_C_1"),
             )
             print("replay")
-            
-        if setRecord() == "fbxExportName":
+        if setRecord() == "exportFbx":
+            global glosNameGlobal
+            print(glosNameGlobal)
             setRecord("idle")
-           
-            ExportandSend(getGlosName(), getSequenceName())
+            last_record = tk.fetch_last_recording()
+            last_record = last_record.get_full_name()
+            unrealTake = last_record.replace("LevelSequence ", "")
+            unrealScene = unrealTake.split(".")[1]
+            unrealTake = unrealTake.split(".")[0]
+            #add _Subscenes/GlassesGuyRecord
+            unrealTake = unrealTake + "_Subscenes/Actor" + "_" +unrealScene
+            print(unrealTake, glosNameGlobal)
+            # tk.start_replaying(
+            #     get_level_sequence_actor_by_name("Actor"),
+            # )
+            export_fbx('/Game/mainlevel', unrealTake, unrealTake, "C:\\RecordingsUE\\"+glosNameGlobal+".fbx")
+            send_fbx_to_url("C:\\RecordingsUE\\"+glosNameGlobal+".fbx")
+            
+            
+
+
 
 
 KeepRunningTakeRecorder().start()
@@ -586,6 +615,65 @@ class ExportandSend:
 #                                               WEBSOCKET CLIENT (YES CLIENT)                           #
 #########################################################################################################
 
+
+
+def export_fbx(map_asset_path, sequencer_asset_path, root_sequencer_asset_path, output_file):
+	# Load the map, get the world
+	world = unreal.EditorLoadingAndSavingUtils.load_map(map_asset_path)
+	# Load the sequence asset
+	sequence = unreal.load_asset(sequencer_asset_path, unreal.LevelSequence)
+	root_sequence = unreal.load_asset(root_sequencer_asset_path, unreal.LevelSequence)
+	# Set Options
+	export_options = unreal.FbxExportOption()
+	export_options.ascii = False
+	export_options.level_of_detail = True
+	export_options.export_source_mesh = True
+	export_options.map_skeletal_motion_to_root = True
+	export_options.export_source_mesh = True
+	export_options.vertex_color = True
+	export_options.export_morph_targets = True
+	export_options.export_preview_mesh = True
+	export_options.force_front_x_axis = False
+	# Get Bindings
+	bindings = sequence.get_bindings()
+	tracks = sequence.get_tracks()
+	# Export
+	export_fbx_params = unreal.SequencerExportFBXParams(world, sequence, root_sequence, bindings, tracks, export_options, output_file)
+	unreal.SequencerTools.export_level_sequence_fbx(export_fbx_params)
+
+def send_fbx_to_url(file_path):
+    """
+    Synchronously send a file to a URL.
+
+    Parameters:
+    - file_path (str): File path of the file to send.
+
+    Prints the response from the server after sending the file.
+    """
+    print("Sending file...")
+    with open(file_path, "rb") as file:
+        files = {"file": (file_path, file, "multipart/form-data")}
+        response = requests.post(
+            "https://leffe.science.uva.nl:8043/fbx2glb/upload/",
+            files=files,
+            verify=False  # Skips SSL verification.
+        )
+
+
+        ws_JSON = {
+            "handler": "fbxExportNameConfirmed",
+            "glosName": glosNameGlobal
+        }
+        ws.send(json.dumps(ws_JSON))
+                
+                
+global glosNameGlobal
+            
+def glosName(glosName):
+    global glosNameGlobal
+    glosNameGlobal = glosName
+    return glosName
+
 websocket.enableTrace(True)
 
 
@@ -597,11 +685,24 @@ def on_close(ws, close_status_code, close_msg):
 def on_message(ws, message):
     global startRecordStatus
     message = json.loads(message)
-    print(message)
     if message["set"] == "startRecord":
         print(setRecord("start"))
         #get last recording from takerecorder
      
+        
+    if message["set"] == "broadcastGlos":
+        print(glosName(message["handler"]))
+        ws_JSON = {
+            "handler": "broadcastGlosConfirmed",
+            "glosName": message["handler"]
+        }
+        ws.send(json.dumps(ws_JSON))
+        
+    if message["set"] == "ping":
+        ws_JSON = {
+            "handler": "pong",
+        }
+        ws.send(json.dumps(ws_JSON))
         
     if message["set"] == "stopRecord":
         print(setRecord("stop"))
@@ -611,19 +712,7 @@ def on_message(ws, message):
         print(setRecord("replayRecord"))
         
     if message["set"] == "exportLevelSequenceName":
-        print(tk.fetch_last_recording())
-        #send the last recording via ws 
-        last_record = tk.fetch_last_recording().get_full_name()
-        #create JSON object for ws
-        ws_JSON = {
-        "data": "glosName",
-        "glosName": last_record
-        }
-        print("##############################################")
-        print(ws_JSON)
-        print("##############################################")
-
-        ws.send(json.dumps(ws_JSON))
+        print(setRecord("exportFbx"))
         
     if message["set"] == "fbxExportName":
         print(setRecord("fbxExportName"))
@@ -637,6 +726,7 @@ def on_message(ws, message):
         ws.send(json.dumps(ws_JSON))
         
         
+        
 
 if len(sys.argv) < 2:
     host = "wss://leffe.science.uva.nl:8043/unrealServer/"
@@ -648,6 +738,12 @@ thread = threading.Thread(
     target=ws.run_forever, kwargs={"sslopt": {"cert_reqs": ssl.CERT_NONE}}
 )
 thread.start()
+
+#request broadcastglos
+ws_JSON = {
+    "handler": "requestGlos",
+}
+ws.send(json.dumps(ws_JSON))
 
 #########################################################################################################
 #                                               PINEAPPLE AND AVOCADO TEST BED                          #

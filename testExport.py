@@ -1,5 +1,6 @@
 import unreal
 import csv
+import httpx
 
 
 def export_fbx(map_asset_path, sequencer_asset_path, root_sequencer_asset_path, output_file):
@@ -47,6 +48,34 @@ def get_csv_rows(csv_file):
    
 			# Accessing by column header name	
 			export_fbx('/Game/mainlevel', unrealTake, unrealTake, "C:\\RecordingsUE\\"+row['glos']+".fbx")
+   
+			send_file_to_url("C:\\RecordingsUE\\"+row['glos']+".fbx")
+   
+   
+   
+		
+async def send_file_to_url(file_path):
+        """
+        Asynchronously send a file to a URL.
+
+        Parameters:
+        - file_path (str): File path of the file to send.
+        - url (str): URL to send the file to.
+
+        Prints the response from the server after sending the file.
+        """
+        print("Sending file...")
+        with httpx.AsyncClient(verify=False) as client:
+            # Open the file and prepare it for sending. No need to use aiohttp.FormData with httpx.
+            with open(file_path, "rb") as file:
+                files = {"file": (file_path, file, "multipart/form-data")}
+                response = await client.post(
+                    "https://leffe.science.uva.nl:8043/fbx2glb/upload/",
+                    files=files,
+                )  # 'verify=False' skips SSL verification.
+
+                # No need to check _is_multipart or to explicitly close the file; it's managed by the context manager.
+                print(response.text)
 		
 #/Game/Cinematics/Takes/2024-04-03/Scene_1_303_Subscenes/GlassesGuyRecord_Scene_1_303
 # export_fbx("/Game/mainlevel", "/Game/Cinematics/Takes/2024-04-03/Scene_1_294_Subscenes/GlassesGuyRecord_Scene_1_294", "/Game/Cinematics/Takes/2024-04-03/Scene_1_294_Subscenes/GlassesGuyRecord_Scene_1_294", "C:\\RecordingsUE\\testPY.fbx")
