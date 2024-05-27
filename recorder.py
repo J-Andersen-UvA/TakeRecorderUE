@@ -725,6 +725,12 @@ def on_message(ws, message):
         
         ws.send(json.dumps(ws_JSON))
         
+    if message["set"] == "isRecording":
+        ws_JSON = {
+            "handler": "isRecordingConfirmed",
+            "isRecording": tk.is_recording()
+        }
+        ws.send(json.dumps(ws_JSON))
         
         
 
@@ -744,73 +750,3 @@ ws_JSON = {
     "handler": "requestGlos",
 }
 ws.send(json.dumps(ws_JSON))
-
-#########################################################################################################
-#                                               PINEAPPLE AND AVOCADO TEST BED                          #
-#########################################################################################################
-
-# TODO:
-# Sequence export async?
-# Sequence export op root en level in orde?
-# implementatie websock, hoe?
-# checken of er als source is ingeladen
-# checken of slate naam gewijzigd kan worden
-# 1. sequence panel in orde, 2. actor al ingeladen, 3. geen record bezig, 4. start record, 5. stop record, 6. export, 7. export sturen naar nodejs server
-# TODO: trigger met websocket
-# TODO automatically load:
-# livelink present
-# source actor present
-
-
-enableRecording = False
-glossName = "asdasds"
-
-# set actor source
-
-TakeRecorderSetActor()
-
-if enableRecording:
-    # first check if it is recording
-    if tk.is_recording():
-        sys.exit()
-    else:
-        tk.start_recording()
-    # then check if it is recording and then export asset files
-    lala = UnrealAsyncFuncs(
-        tk.is_recording,
-        callback=make_check_rec,
-        doneCallback=ExportandSend,
-        glossName=glossName,
-    )
-    # Start the async function
-    lala.start()
-#
-# curTa
-# keRec = TakeRecorder()
-# # curTakeRec.start_recording()
-# # curTakeRec.stop_recording()
-# files = curTakeRec.fetch_last_recording_assets()
-# print('files: ', files)
-
-# ass = '/Game/Cinematics/Takes/2024-02-29/Scene_1_2548_Subscenes/Animation/glassesGuysActorBP_Scene_1_2548'
-# print(unreal.EditorAssetLibrary.does_asset_exist(ass))
-
-# assetTool = unreal.AssetToolsHelpers.get_asset_tools()
-# assetTool.export_assets([ass], "C:/Users/VICON/Desktop/test")
-
-# bpFuncs = unreal.SequencerTools()
-# bpFuncs.export_anim_sequence()
-
-
-# Start record
-
-# before start record, check if:
-# doesnt it already start record?
-# def recordStartup():
-#     tk = TakeRecorder()
-#     if not tk.is_recording():
-#
-# else:
-#     tk.stop_recording()
-#     #go back to start of function
-#     recordStartup()
