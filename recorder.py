@@ -15,6 +15,46 @@ import requests
 # import subprocess
 from multiprocessing import Process, Queue
 
+
+# Function to get the name of the skeletal mesh from the animation
+def get_skeletal_mesh_name_from_animation(animation_path):
+    print(f"Loading animation asset from path: {animation_path}")
+    # Load the animation asset
+    animation_asset = unreal.load_asset(animation_path)
+    
+    # Check if the asset was successfully loaded
+    if not animation_asset:
+        print("Failed to load asset. Please check the asset path.")
+        return None
+    
+    # Check if the asset is a valid animation asset
+    if not isinstance(animation_asset, unreal.AnimSequence):
+        print(f"Loaded asset is not an AnimSequence. It is a {type(animation_asset).__name__}.")
+        return None
+
+    print(f"Successfully loaded animation asset: {animation_asset.get_name()}")
+
+    # Get the skeleton from the animation asset
+    skeleton = animation_asset.get_editor_property('skeleton')
+    if not skeleton:
+        print("Failed to get skeleton from the animation asset.")
+        return None
+    
+    print(f"Skeleton: {skeleton.get_name()}")
+
+    if "_Skeleton" in skeleton.get_name():
+        return skeleton.get_name().replace("_Skeleton", "")
+    
+    # Get all skeletal mesh references associated with the skeleton
+    skeletal_meshes = skeleton.get_referencers(unreal.SkeletalMesh)
+    if not skeletal_meshes:
+        print("No skeletal meshes found for this animation.")
+        return None
+    
+    # Get the name of the first skeletal mesh found (assuming there's at least one)
+    skeletal_mesh_name = skeletal_meshes[0].get_name()
+    return skeletal_mesh_name
+
 #########################################################################################################
 #                                            UEFileManager                                              #
 #########################################################################################################
@@ -416,14 +456,15 @@ class KeepRunningTakeRecorder:
             unrealScene = unrealTake.split(".")[1]
             unrealTake = unrealTake.split(".")[0]
             #add _Subscenes/GlassesGuyRecord
-            unrealTake = unrealTake + "_Subscenes/Actor" + "_" +unrealScene
+            unrealTake = unrealTake + "_Subscenes/GlassesGuyRecord" + "_" +unrealScene
             print(unrealTake, glosNameGlobal)
             # tk.start_replaying(
-            #     get_level_sequence_actor_by_name("Actor"),
+            #     get_level_sequence_actor_by_name("GlassesGuyRecord"),
             # )
-            export_fbx('/Game/mainlevel', unrealTake, unrealTake, "C:\\RecordingsUE\\"+glosNameGlobal+".fbx")
-            send_fbx_to_url("C:\\RecordingsUE\\"+glosNameGlobal+".fbx")
-            
+            export_fbx('/Game/mainlevel', unrealTake, unrealTake, "D:\\RecordingsUE\\"+glosNameGlobal+".fbx")
+
+            anim_path = unrealTake + "_Subscenes/Animation/" + unrealScene
+            send_fbx_to_url("D:\\RecordingsUE\\"+glosNameGlobal+".fbx", avatar_name=get_skeletal_mesh_name_from_animation(anim_path))
             
 
 
@@ -639,9 +680,9 @@ def export_fbx(map_asset_path, sequencer_asset_path, root_sequencer_asset_path, 
 	tracks = sequence.get_tracks()
 	# Export
 	export_fbx_params = unreal.SequencerExportFBXParams(world, sequence, root_sequence, bindings, tracks, export_options, output_file)
-	unreal.SequencerTools.export_level_sequence_fbx(export_fbx_params)
+	unreal.SequencerTools.export_level_sequence_fbx(export_fbx_params)    
 
-def send_fbx_to_url(file_path):
+def send_fbx_to_url(file_path, avatar_name="glassesGuy"):
     """
     Synchronously send a file to a URL.
 
@@ -662,7 +703,8 @@ def send_fbx_to_url(file_path):
 
         ws_JSON = {
             "handler": "fbxExportNameConfirmed",
-            "glosName": glosNameGlobal
+            "glosName": glosNameGlobal,
+            "avatarName": avatar_name
         }
         ws.send(json.dumps(ws_JSON))
                 
@@ -750,3 +792,4 @@ ws_JSON = {
     "handler": "requestGlos",
 }
 ws.send(json.dumps(ws_JSON))
+ 
