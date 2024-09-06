@@ -1,0 +1,18 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		}
+	],
+	"settings": {
+		"python.analysis.extraPaths": ["..\\Intermediate\\PythonStub"],
+		"python.autoComplete.extraPaths": ["..\\Intermediate\\PythonStub"],
+		"python.defaultInterpreterPath": 
+			"C:\\Program Files\\Epic Games\\UE_5.3\\Engine\\Binaries\\ThirdParty\\Python3\\Win64\\python.exe",
+	},
+	"extensions": {
+		"recommendations": [
+			"ms-python.black-formatter"
+		]
+	}
+}
