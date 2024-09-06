@@ -10,11 +10,6 @@ import scripts.stateManagerScript as stateManagerScript
 import scripts.exportAndSend as exportAndSend
 import scripts.popUp as popUp
 
-
-#########################################################################################################
-#                                            asyncFuncs                                                 #
-#########################################################################################################
-
 class KeepRunningTakeRecorder:
     """
     Utility class for managing continuous recording with the Take Recorder.
@@ -33,7 +28,6 @@ class KeepRunningTakeRecorder:
     """
 
     def __init__(self, tk: takeRecorder.TakeRecorder, file):
-        self.sequencerTools = levelSequence.SequencerTools(tk.fetch_last_recording(), file)
         self.replayEnabled = False
     #     self.startRecordStatus = startRecordStatus
 
@@ -87,7 +81,7 @@ class KeepRunningTakeRecorder:
             if self.replayEnabled:
                 print("Replaying recorded animation...")
                 tk.start_replaying(
-                    self.sequencerTools.get_level_sequence_actor_by_name("GlassesGuyRecord_C_1"),
+                    levelSequence.SequencerTools(tk.fetch_last_recording(), "").get_level_sequence_actor_by_name("GlassesGuyRecord_C_1"),
                 )
 
         if stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_FBX:

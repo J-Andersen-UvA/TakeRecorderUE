@@ -2,6 +2,7 @@ import sys
 import json
 import requests
 import websocket
+import time
 import threading
 import ssl
 import scripts.stateManagerScript as stateManagerScript
@@ -43,34 +44,33 @@ class websocketCommunication:
         Opens a new WebSocket connection.
         """
         print(f"Opening WebSocket connection to {self.host}...")
-        self.ws = websocket.WebSocketApp(
-            self.host,
-            on_message=self.on_message,
-            on_close=self.on_close,
-            on_open=self.on_open,
-            enable_trace=True
-        )
-        self.thread = threading.Thread(
-            target=self.ws.run_forever,
-            kwargs={"sslopt": {"cert_reqs": ssl.CERT_NONE}}
-        )
-        self.thread.start()
-
-    def on_open(self):
-        """
-        Called when the WebSocket connection is opened.
-        """
-        print("WebSocket connection opened. Sending initial request...")
-        ws_JSON = {"handler": "requestGlos"}
-        self.ws.send(json.dumps(ws_JSON))
+        retries = 3  # Number of times to retry connecting
+        for attempt in range(retries):
+            try:
+                self.ws = websocket.WebSocketApp(
+                    self.host,
+                    on_message=self.on_message,
+                    on_close=self.on_close,
+                    on_open=self.on_open,
+                    on_error=self.on_error,  # Add on_error handler
+                    on_ping=self.on_ping    # Add on_ping handler
+                )
+                self.thread = threading.Thread(
+                    target=self.ws.run_forever,
+                    kwargs={"sslopt": {"cert_reqs": ssl.CERT_NONE}}
+                )
+                self.thread.start()
+                print("WebSocket connection thread started.")
+                break  # Exit loop if connection is successful
+            except Exception as e:
+                print(f"Attempt {attempt + 1} failed: {e}")
+                time.sleep(2 ** attempt)  # Exponential backoff
+        else:
+            print("Failed to open WebSocket connection after multiple attempts.")
 
     def setStatus(value=None):
         stateManager.set_recording_status(value)
         return stateManager.get_recording_status()
-
-    def on_close(ws, close_status_code, close_msg):
-        print("### CLOSED AND KILLED PYTHON PROCESS ###")
-        sys.exit()
 
     def send_fbx_to_url(self, file_path, avatar_name="glassesGuy"):
         """
@@ -97,7 +97,25 @@ class websocketCommunication:
             }
             self.ws.send(json.dumps(ws_JSON))
 
-    def on_message(self, message):
+    def on_error(self, ws, error):
+        print(f"WebSocket error: {error}")
+
+    def on_ping(self, ws, message):
+        print(f"Received ping: {message}")
+
+    def on_open(self, ws):
+        """
+        Called when the WebSocket connection is opened.
+        """
+        print("WebSocket connection opened. Sending initial request...")
+        ws_JSON = {"handler": "requestGlos"}
+        self.ws.send(json.dumps(ws_JSON))
+
+    def on_close(self, ws, close_status_code, close_msg):
+        print("### CLOSED AND KILLED PYTHON PROCESS ###")
+        sys.exit()
+
+    def on_message(self, ws, message):
         message = json.loads(message)
 
         # Setting the status of the recorder lets the unreal tik function know what to do
