@@ -585,7 +585,7 @@ class ExportandSend:
     def __init__(self, glossName, unreal_take):
         self.glossName = glossName
         self.unreal_take = unreal_take
-        self.file = "C:\\RecordingsUE\\" + self.glossName + ".fbx"
+        self.file = "D:\\RecordingsUE\\" + self.glossName + ".fbx"
         self.execExport()
         
     def execExport(self) -> None:
@@ -716,7 +716,7 @@ def glosName(glosName):
     glosNameGlobal = glosName
     return glosName
 
-websocket.enableTrace(True)
+# websocket.enableTrace(True)
 
 
 def on_close(ws, close_status_code, close_msg):
@@ -773,7 +773,6 @@ def on_message(ws, message):
             "isRecording": tk.is_recording()
         }
         ws.send(json.dumps(ws_JSON))
-        
         
 
 if len(sys.argv) < 2:
