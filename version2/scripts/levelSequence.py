@@ -23,8 +23,8 @@ class SequencerTools:
         """
         if not hasattr(self, 'initialized'):  # Initialize once
             self.initialized = True
-            self.rootSequence = rootSequence
-            
+            self.rootSequence = ("" if rootSequence == None else rootSequence)
+
             self.sequence = unreal.load_asset(self.rootSequence, unreal.LevelSequence)
             
             bindings = self.sequence.get_bindings()
