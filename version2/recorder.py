@@ -10,6 +10,7 @@ import scripts.wsCommunicationScript as wsCommunicationScript
 import scripts.stateManagerScript as stateManagerScript
 import scripts.exportAndSend as exportAndSend
 import scripts.popUp as popUp
+import scripts.callback as callback
 
 class KeepRunningTakeRecorder:
     """
@@ -83,6 +84,8 @@ class KeepRunningTakeRecorder:
             print("Exporting last recording...")
             exportAndSend.ExportandSend(stateManager.get_gloss_name(), tk.fetch_last_recording())
 
+            callback.Callback().send_message("path", stateManager.folder + "\\" + stateManager.get_gloss_name() + ".fbx")
+
         if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
             if self.replayEnabled:
                 print("Replaying recorded animation...")
@@ -107,6 +110,8 @@ class KeepRunningTakeRecorder:
 
             anim_path = unrealTake + "_Subscenes/Animation/" + unrealScene
             wsCom.send_fbx_to_url("D:\\RecordingsUE\\" + glosName + ".fbx", avatar_name=skeletalMeshNameFetcher.get_skeletal_mesh_name_from_animation(anim_path))
+
+            callback.Callback().send_message("path", stateManager.folder + "\\" + stateManager.get_gloss_name() + ".fbx")
 
     def rename_last_recording(self, cur_path, gloss_name):
         # Check if last path already exists and rename it to _old_{1} if it does
