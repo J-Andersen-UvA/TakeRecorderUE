@@ -68,7 +68,7 @@ class websocketCommunication:
         else:
             print("Failed to open WebSocket connection after multiple attempts.")
 
-    def setStatus(value=None):
+    def setStatus(self, value=None):
         stateManager.set_recording_status(value)
         return stateManager.get_recording_status()
 
@@ -167,3 +167,6 @@ class websocketCommunication:
                 "isRecording": self.tk.is_recording()
             }
             self.ws.send(json.dumps(ws_JSON))
+
+        if message["set"] == "close":
+            self.ws.close()

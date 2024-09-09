@@ -27,6 +27,7 @@ class StateManager:
             self.gloss_name = None
             self.initialized = True
             self.level_sequence_name = None
+            self.folder = "D:\\RecordingsUE\\"
 
     def set_gloss_name(self, gloss_name):
         """Sets the glossName."""

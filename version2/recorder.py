@@ -1,6 +1,7 @@
 import unreal
 import json
 import sys
+import os
 
 import scripts.skeletalMeshNameFetcher as skeletalMeshNameFetcher
 import scripts.takeRecorder as takeRecorder
@@ -29,6 +30,7 @@ class KeepRunningTakeRecorder:
 
     def __init__(self, tk: takeRecorder.TakeRecorder, file):
         self.replayEnabled = False
+        self.keepLastRecording = True
     #     self.startRecordStatus = startRecordStatus
 
     def start(self) -> None:
@@ -38,7 +40,7 @@ class KeepRunningTakeRecorder:
         Registers a Slate post-tick callback to execute 'tick' method.
         """
         self.slate_post_tick_handle = unreal.register_slate_post_tick_callback(self.tick)
-        popUp.show_popup_message("KeepRunningTakeRecorder", "Tick hook started")
+        popUp.show_popup_message("KeepRunningTakeRecorder", f"Tick hook started, keepingLastRecording: {self.keepLastRecording}")
 
     def stop(self) -> None:
         """
@@ -46,8 +48,11 @@ class KeepRunningTakeRecorder:
 
         Unregisters the Slate post-tick callback.
         """
+        if self.slate_post_tick_handle is not None:
+            unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
+            self.slate_post_tick_handle = None
         unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
-        
+
     def tick(self, delta_time: float) -> None:
         """
         Perform actions based on the current state.
@@ -74,6 +79,7 @@ class KeepRunningTakeRecorder:
         if stateManager.get_recording_status() == stateManagerScript.Status.FBX_EXPORT:
             stateManager.set_recording_status(stateManagerScript.Status.IDLE)
 
+            self.rename_last_recording(stateManager.folder, stateManager.get_gloss_name())
             print("Exporting last recording...")
             exportAndSend.ExportandSend(stateManager.get_gloss_name(), tk.fetch_last_recording())
 
@@ -96,10 +102,24 @@ class KeepRunningTakeRecorder:
             unrealTake = unrealTake + "_Subscenes/GlassesGuyRecord" + "_" + unrealScene
             print(unrealTake, glosName)
 
-            exportAndSend.export_fbx('/Game/mainlevel', unrealTake, unrealTake, "D:\\RecordingsUE\\" + glosName + ".fbx")
+            self.rename_last_recording(stateManager.folder, glosName)
+            exportAndSend.export_fbx('/Game/mainlevel', unrealTake, unrealTake, stateManager.folder + glosName + ".fbx")
 
             anim_path = unrealTake + "_Subscenes/Animation/" + unrealScene
             wsCom.send_fbx_to_url("D:\\RecordingsUE\\" + glosName + ".fbx", avatar_name=skeletalMeshNameFetcher.get_skeletal_mesh_name_from_animation(anim_path))
+
+    def rename_last_recording(self, cur_path, gloss_name):
+        # Check if last path already exists and rename it to _old_{1} if it does
+        complete_path = cur_path + "\\" + gloss_name + ".fbx"
+        if os.path.exists(complete_path):
+            print(f"File already exists: {complete_path}")
+            i = 1
+            old_path = cur_path + "\\" + gloss_name + f"_old_{i}.fbx"
+            while os.path.exists(old_path):
+                i += 1
+                old_path = cur_path + "\\" + gloss_name + f"_old_{i}.fbx"
+            print(f"Renaming to: {old_path}")
+            os.rename(complete_path, old_path)
 
 
 stateManager = stateManagerScript.StateManager()
