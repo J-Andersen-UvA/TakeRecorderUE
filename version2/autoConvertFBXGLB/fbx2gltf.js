@@ -13,11 +13,17 @@ console.log('Input folder and filename:', folder + ' ' + filename);
 
 // Output path
 const outputDir = path.join(folder, 'glb');
-const outputPath = path.join(outputDir, `${filename}.glb`);
+var outputPath = path.join(outputDir, `${filename}.glb`);
 
 // Create the output directory if it does not exist
 if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
+}
+
+// If output file already exists, increment the filename
+let i = 1;
+while (fs.existsSync(outputPath)) {
+    outputPath = path.join(outputDir, `${filename}_${i++}.glb`);
 }
 
 convert(inputPath, outputPath, []).then(
