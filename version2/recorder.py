@@ -2,6 +2,7 @@ import unreal
 import json
 import sys
 import os
+import subprocess
 
 import scripts.skeletalMeshNameFetcher as skeletalMeshNameFetcher
 import scripts.takeRecorder as takeRecorder
@@ -33,7 +34,7 @@ class KeepRunningTakeRecorder:
         self.replayEnabled = False
         self.keepLastRecording = True
         self.babylonAutoPlay = True
-        self.server = callback.PathFlaskApp()
+        self.pathServer = callback.PathFlaskApp()
         self.actorName = "GlassesGuyRecord_C_1"
     #     self.startRecordStatus = startRecordStatus
 
@@ -80,25 +81,25 @@ class KeepRunningTakeRecorder:
             }
             wsCom.ws.send(json.dumps(ws_JSON))            
 
-        if stateManager.get_recording_status() == stateManagerScript.Status.FBX_EXPORT:
-            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+        # if stateManager.get_recording_status() == stateManagerScript.Status.FBX_EXPORT:
+        #     stateManager.set_recording_status(stateManagerScript.Status.IDLE)
 
-            self.rename_last_recording(stateManager.folder, stateManager.get_gloss_name())
-            print("Exporting last recording...")
-            exportAndSend.ExportandSend(stateManager.get_gloss_name(), tk.fetch_last_recording())
+        #     self.rename_last_recording(stateManager.folder, stateManager.get_gloss_name())
+        #     print("Exporting last recording...")
+        #     exportAndSend.ExportandSend(stateManager.get_gloss_name(), tk.fetch_last_recording())
 
-            # Automatically convert to GLB and wait for Babylon
-            callback.Callback().send_message("path", stateManager.folder + "\\" + stateManager.get_gloss_name() + ".fbx")
-            if self.babylonAutoPlay:
-                # callback.Callback().send_message_to("path", stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb", "/send-path", "localhost", 5000)
-                # callback.Callback().send_message_to_ws("path", stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb", "localhost", 5000)
-                if not self.server._is_running:
-                    self.server.launch()
-                path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb"
-                if self.server._path == path:
-                    self.server.change_path("reload")
-                else:
-                    self.server.change_path(stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb")
+        #     # Automatically convert to GLB and wait for Babylon
+        #     callback.Callback().send_message("path", stateManager.folder + "\\" + stateManager.get_gloss_name() + ".fbx")
+        #     if self.babylonAutoPlay:
+        #         # callback.Callback().send_message_to("path", stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb", "/send-path", "localhost", 5000)
+        #         # callback.Callback().send_message_to_ws("path", stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb", "localhost", 5000)
+        #         if not self.pathServer._is_running:
+        #             self.pathServer.launch()
+        #         path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb"
+        #         if self.pathServer._path == path:
+        #             self.pathServer.change_path("reload")
+        #         else:
+        #             self.pathServer.change_path(stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb")
 
         if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
             if self.replayEnabled:
@@ -122,25 +123,25 @@ class KeepRunningTakeRecorder:
 
             self.rename_last_recording(stateManager.folder, glosName)
             exportAndSend.export_animation(animLocation, stateManager.folder, glosName)
-            # exportAndSend.export_fbx(unrealTake, unrealTake, stateManager.folder + glosName + ".fbx")
-            # exportAndSend.export_sequence(animLocation, stateManager.folder + glosName + ".fbx")
-            # exportAndSend.export_animation(animLocation, stateManager.folder + glosName + ".fbx")
+            wsCom.send_fbx_to_url(stateManager.folder + glosName + ".fbx", avatar_name=self.actorName)
 
-            anim_path = unrealTake + "_Subscenes/Animation/" + unrealScene
-            wsCom.send_fbx_to_url("D:\\RecordingsUE\\" + glosName + ".fbx", avatar_name=self.actorName)
+            print("Converting: ", stateManager.folder + glosName + ".fbx")
+            result = subprocess.run(["C:\\Program Files\\nodejs\\node.exe", "C:\\Users\\VICON\\Desktop\\Code\\TakeRecorderUE\\version2\\autoConvertFBXGLB\\fbx2gltf.js", stateManager.folder + glosName + ".fbx"])
+            print(result)
 
-            # Automatically convert to GLB and wait for Babylon
-            callback.Callback().send_message("path", stateManager.folder + "\\" + stateManager.get_gloss_name() + ".fbx")
             if self.babylonAutoPlay:
-                # callback.Callback().send_message_to("path", stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb", "/send-path", "localhost", 5000)
-                # callback.Callback().send_message_to_ws("path", stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb", "localhost", 5000)
-                if not self.server._is_running:
-                    self.server.launch()
+                if not self.pathServer._is_running:
+                    self.pathServer.launch()
                 path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb"
-                if self.server._path == path:
-                    self.server.change_path("reload")
-                else:
-                    self.server.change_path(stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb")
+
+                # Because converter auto increments the name of the file, we need to fetch the highest number and use that as path
+                if os.path.exists(path):
+                    i = 1
+                    while os.path.exists(path):
+                        i += 1
+                        path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i}.glb"
+                    path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i-1}.glb"
+                self.pathServer.change_path(path)
 
     def rename_last_recording(self, cur_path, gloss_name):
         # Check if last path already exists and rename it to _old_{1} if it does
