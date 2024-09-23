@@ -74,8 +74,8 @@ class KeepRunningTakeRecorder:
             wsCom.ws.send(json.dumps(ws_JSON))
         
         if stateManager.get_recording_status() == stateManagerScript.Status.STOP:
-            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             tk.stop_recording()
+            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             ws_JSON = {
                 "handler": "stopRecordingConfirmed",
             }
@@ -109,7 +109,6 @@ class KeepRunningTakeRecorder:
                 )
 
         if stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_FBX:
-            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             glosName = stateManager.get_gloss_name()
             print(f"Exporting last recording: {glosName}...")
 
@@ -141,7 +140,22 @@ class KeepRunningTakeRecorder:
                         i += 1
                         path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i}.glb"
                     path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i-1}.glb"
+                print(f"Setting path of path server to: {path}")
                 self.pathServer.change_path(path)
+
+                # Fetch path from server and check if it is the same as the path we just set, if not kill the server and launch a new one
+                if self.pathServer._path != path:
+                    callback.Callback().send_message_to("", "", "/turn_off", "localhost", 5001)
+                    self.pathServer.launch()
+                    
+
+            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+
+            # Lastly, let the websocket know that the fbx has been exported
+            # ws_JSON = {
+            #     "handler": "fbxExportNameConfirmed",
+            # }
+            # wsCom.ws.send(json.dumps(ws_JSON))
 
     def rename_last_recording(self, cur_path, gloss_name):
         # Check if last path already exists and rename it to _old_{1} if it does
