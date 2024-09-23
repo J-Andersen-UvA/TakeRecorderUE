@@ -32,6 +32,9 @@ class KeepRunningTakeRecorder:
     def __init__(self, tk: takeRecorder.TakeRecorder, file):
         self.replayEnabled = False
         self.keepLastRecording = True
+        self.babylonAutoPlay = True
+        self.server = callback.PathFlaskApp()
+        self.actorName = "GlassesGuyRecord_C_1"
     #     self.startRecordStatus = startRecordStatus
 
     def start(self) -> None:
@@ -84,13 +87,24 @@ class KeepRunningTakeRecorder:
             print("Exporting last recording...")
             exportAndSend.ExportandSend(stateManager.get_gloss_name(), tk.fetch_last_recording())
 
+            # Automatically convert to GLB and wait for Babylon
             callback.Callback().send_message("path", stateManager.folder + "\\" + stateManager.get_gloss_name() + ".fbx")
+            if self.babylonAutoPlay:
+                # callback.Callback().send_message_to("path", stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb", "/send-path", "localhost", 5000)
+                # callback.Callback().send_message_to_ws("path", stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb", "localhost", 5000)
+                if not self.server._is_running:
+                    self.server.launch()
+                path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb"
+                if self.server._path == path:
+                    self.server.change_path("reload")
+                else:
+                    self.server.change_path(stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb")
 
         if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
             if self.replayEnabled:
                 print("Replaying recorded animation...")
                 tk.start_replaying(
-                    levelSequence.SequencerTools(tk.fetch_last_recording(), "").get_level_sequence_actor_by_name("GlassesGuyRecord_C_1"),
+                    levelSequence.SequencerTools(tk.fetch_last_recording(), "").get_level_sequence_actor_by_name(self.actorName),
                 )
 
         if stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_FBX:
@@ -102,16 +116,31 @@ class KeepRunningTakeRecorder:
             unrealTake = last_record.replace("LevelSequence ", "")
             unrealScene = unrealTake.split(".")[1]
             unrealTake = unrealTake.split(".")[0]
+            animLocation = unrealTake + "_Subscenes/Animation/GlassesGuyRecord" + "_" + unrealScene
             unrealTake = unrealTake + "_Subscenes/GlassesGuyRecord" + "_" + unrealScene
             print(unrealTake, glosName)
 
             self.rename_last_recording(stateManager.folder, glosName)
-            exportAndSend.export_fbx('/Game/mainlevel', unrealTake, unrealTake, stateManager.folder + glosName + ".fbx")
+            exportAndSend.export_animation(animLocation, stateManager.folder, glosName)
+            # exportAndSend.export_fbx(unrealTake, unrealTake, stateManager.folder + glosName + ".fbx")
+            # exportAndSend.export_sequence(animLocation, stateManager.folder + glosName + ".fbx")
+            # exportAndSend.export_animation(animLocation, stateManager.folder + glosName + ".fbx")
 
             anim_path = unrealTake + "_Subscenes/Animation/" + unrealScene
-            wsCom.send_fbx_to_url("D:\\RecordingsUE\\" + glosName + ".fbx", avatar_name=skeletalMeshNameFetcher.get_skeletal_mesh_name_from_animation(anim_path))
+            wsCom.send_fbx_to_url("D:\\RecordingsUE\\" + glosName + ".fbx", avatar_name=self.actorName)
 
+            # Automatically convert to GLB and wait for Babylon
             callback.Callback().send_message("path", stateManager.folder + "\\" + stateManager.get_gloss_name() + ".fbx")
+            if self.babylonAutoPlay:
+                # callback.Callback().send_message_to("path", stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb", "/send-path", "localhost", 5000)
+                # callback.Callback().send_message_to_ws("path", stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb", "localhost", 5000)
+                if not self.server._is_running:
+                    self.server.launch()
+                path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb"
+                if self.server._path == path:
+                    self.server.change_path("reload")
+                else:
+                    self.server.change_path(stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb")
 
     def rename_last_recording(self, cur_path, gloss_name):
         # Check if last path already exists and rename it to _old_{1} if it does
@@ -133,6 +162,8 @@ tk = takeRecorder.TakeRecorder()
 KeepRunningTakeRecorder(tk, "").start()
 
 host = "wss://leffe.science.uva.nl:8043/unrealServer/"
+# host = "ws://localhost:5012/"
 if len(sys.argv) > 1:
     host = sys.argv[1]
 wsCom = wsCommunicationScript.websocketCommunication(host, tk)
+wsCom.keep_running_take_recorder = tk

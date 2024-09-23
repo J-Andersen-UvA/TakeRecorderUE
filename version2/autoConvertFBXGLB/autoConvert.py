@@ -17,7 +17,7 @@ def convert_to_gltf():
         path = data.get("path")
 
         # Using subprocess to run the javascript conversion script, C:\Program Files\nodejs\node.exe .\..\tools\fbx2gltf.js
-        subprocess.run(["C:\\Program Files\\nodejs\\node.exe", ".\\fbx2gltf.js", path])
+        subprocess.run(["C:\\Program Files\\nodejs\\node.exe", ".\\autoConvertFBXGLB\\fbx2gltf.js", path])
 
         # Respond with a success message
         return jsonify({"status": "success", "message": "Export completed successfully"}), 200

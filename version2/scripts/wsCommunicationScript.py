@@ -23,6 +23,7 @@ class websocketCommunication:
             self.tk = takeRecorder
             self.ws = None  # Initialize with no WebSocket connection
             self.thread = None  # Track the thread for the WebSocket
+            self.keep_running_take_recorder = None
 
             # Ensure previous WebSocket connection is closed before starting a new one
             self.close_connection()  # Close any existing connection
@@ -112,6 +113,7 @@ class websocketCommunication:
         self.ws.send(json.dumps(ws_JSON))
 
     def on_close(self, ws, close_status_code, close_msg):
+        self.keep_running_take_recorder.stop()
         print("### CLOSED AND KILLED PYTHON PROCESS ###")
         sys.exit()
 
