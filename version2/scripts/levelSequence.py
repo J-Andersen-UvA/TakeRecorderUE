@@ -29,18 +29,25 @@ class SequencerTools:
             
             bindings = self.sequence.get_bindings()
             tracks = self.sequence.get_tracks()
-            export_options = unreal.FbxExportOption()
-            export_options.ascii = True
-            export_options.level_of_detail = False
-    
+            self.export_options = unreal.FbxExportOption()
+            self.export_options.ascii = False
+            self.export_options.level_of_detail = True
+            self.export_options.export_source_mesh = True
+            self.export_options.map_skeletal_motion_to_root = True
+            self.export_options.export_source_mesh = True
+            self.export_options.vertex_color = True
+            self.export_options.export_morph_targets = True
+            self.export_options.export_preview_mesh = True
+            self.export_options.force_front_x_axis = False
+
             self.params = unreal.SequencerExportFBXParams(
                 world=unreal.EditorLevelLibrary.get_editor_world(),
-                root_sequence=self.sequence,
                 sequence=self.sequence,
-                fbx_file_name=("D:\\RecordingsUE\\TEST.fbx" if file == "" else file),
+                root_sequence=self.sequence,
                 bindings=bindings,
                 tracks=tracks,
-                export_options=export_options
+                export_options=self.export_options,
+                fbx_file_name=("D:\\RecordingsUE\\TEST.fbx" if file == "" else file),
             )
 
     def set_root_sequence(self, root_sequence):

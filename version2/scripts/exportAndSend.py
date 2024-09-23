@@ -90,26 +90,31 @@ class ExportandSend:
                 # No need to check _is_multipart or to explicitly close the file; it's managed by the context manager.
                 print(response.text)
 
-def export_fbx(map_asset_path, sequencer_asset_path, root_sequencer_asset_path, output_file):
-    # Load the map, get the world
-    world = unreal.EditorLoadingAndSavingUtils.load_map(map_asset_path)
-    # Load the sequence asset
-    sequence = unreal.load_asset(sequencer_asset_path, unreal.LevelSequence)
-    root_sequence = unreal.load_asset(root_sequencer_asset_path, unreal.LevelSequence)
-    # Set Options
-    export_options = unreal.FbxExportOption()
-    export_options.ascii = False
-    export_options.level_of_detail = True
-    export_options.export_source_mesh = True
-    export_options.map_skeletal_motion_to_root = True
-    export_options.export_source_mesh = True
-    export_options.vertex_color = True
-    export_options.export_morph_targets = True
-    export_options.export_preview_mesh = True
-    export_options.force_front_x_axis = False
-    # Get Bindings
-    bindings = sequence.get_bindings()
-    tracks = sequence.get_tracks()
-    # Export
-    export_fbx_params = unreal.SequencerExportFBXParams(world, sequence, root_sequence, bindings, tracks, export_options, output_file)
-    unreal.SequencerTools.export_level_sequence_fbx(export_fbx_params)    
+def export_animation(animation_asset_path : str, export_path : str, name : str = "animation", ascii : bool = False, force_front_x_axis : bool = False):
+    if not export_path.endswith("/"):
+        export_path += "/"
+
+    # Full export filename including .fbx extension
+    full_export_path = f"{export_path}{name}.fbx"
+
+    FbxExportOptions = unreal.FbxExportOption()
+    FbxExportOptions.ascii = ascii
+    FbxExportOptions.export_local_time = True
+    FbxExportOptions.export_morph_targets = True
+    FbxExportOptions.export_preview_mesh = True
+    FbxExportOptions.force_front_x_axis = force_front_x_axis
+
+    task = unreal.AssetExportTask()
+    task.set_editor_property("exporter", unreal.AnimSequenceExporterFBX())
+    task.options = FbxExportOptions
+    task.automated = True
+    task.filename = full_export_path
+    task.object = unreal.load_asset(animation_asset_path)
+    task.write_empty_files = False
+    task.replace_identical = True
+    task.prompt = False
+
+    # Export the animation
+    if not unreal.Exporter.run_asset_export_task(task):
+        raise ValueError(f"Failed to export animation at path {animation_asset_path}")
+    return True, full_export_path
