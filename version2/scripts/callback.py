@@ -102,7 +102,7 @@ class Callback:
             await websocket.send(json.dumps(data))
             print(f"Sent WebSocket message: {data}")
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 import threading
 import time
@@ -110,7 +110,7 @@ import os
 import signal
 
 class PathFlaskApp:
-    def __init__(self):
+    def __init__(self, *args):
         """
         Initialize the Flask application and string storage.
         """
@@ -121,6 +121,10 @@ class PathFlaskApp:
         self._thread = None
         self._server = None
         self._is_running = False
+
+        self._port = 5001
+        if args:
+            self._port = args[0]
 
         @self.app.route('/get_path', methods=['GET'])
         def get_path():
@@ -137,6 +141,17 @@ class PathFlaskApp:
             """
             self.close()
             return jsonify({"status": "Server turned off"})
+        
+        @self.app.route('/set_path', methods=['POST'])
+        def set_path():
+            """
+            Endpoint to set the path.
+            """
+            data = request.get_json()
+            new_path = data.get('path')
+            self.change_path(new_path)
+            print(f"Path changed to: {new_path}")
+            return jsonify({"status": "Path changed"})
 
     def change_path(self, new_path):
         """
@@ -147,12 +162,12 @@ class PathFlaskApp:
         """
         self._path = new_path
 
-    def _run_server(self, port=5001):
+    def _run_server(self):
         """
         Private method to run the Flask app in a thread.
         """
         self._is_running = True
-        self.app.run(port=port, use_reloader=False, debug=True)
+        self.app.run(port=self._port, use_reloader=False, debug=True)
 
     def launch(self):
         """

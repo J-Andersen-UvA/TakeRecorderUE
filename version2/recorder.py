@@ -3,6 +3,7 @@ import json
 import sys
 import os
 import subprocess
+import yaml
 
 import scripts.skeletalMeshNameFetcher as skeletalMeshNameFetcher
 import scripts.takeRecorder as takeRecorder
@@ -12,6 +13,11 @@ import scripts.stateManagerScript as stateManagerScript
 import scripts.exportAndSend as exportAndSend
 import scripts.popUp as popUp
 import scripts.callback as callback
+
+# Set the parameters from the config file
+params = None
+with open('C:\\Users\\VICON\\Desktop\\Code\\TakeRecorderUE\\version2\\config.yaml', 'r') as file:
+    params = yaml.safe_load(file)
 
 class KeepRunningTakeRecorder:
     """
@@ -34,8 +40,9 @@ class KeepRunningTakeRecorder:
         self.replayEnabled = False
         self.keepLastRecording = True
         self.babylonAutoPlay = True
-        self.pathServer = callback.PathFlaskApp()
-        self.actorName = "GlassesGuyRecord_C_1"
+        self.pathServer = callback.PathFlaskApp(params["pathServerPort"])
+        self.actorName = params["actor_name"]
+        # self.actorName = "GlassesGuyRecord_C_1"
     #     self.startRecordStatus = startRecordStatus
 
     def start(self) -> None:
@@ -142,10 +149,11 @@ class KeepRunningTakeRecorder:
                     path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i-1}.glb"
                 print(f"Setting path of path server to: {path}")
                 self.pathServer.change_path(path)
+                callback.Callback().send_message_to("path", path, "/set_path", params["pathServerAddr"], params["pathServerPort"])
 
                 # Fetch path from server and check if it is the same as the path we just set, if not kill the server and launch a new one
                 if self.pathServer._path != path:
-                    callback.Callback().send_message_to("", "", "/turn_off", "localhost", 5001)
+                    callback.Callback().send_message_to("", "", "/turn_off", params["pathServerAddr"], params["pathServerPort"])
                     self.pathServer.launch()
                     
 
@@ -171,12 +179,13 @@ class KeepRunningTakeRecorder:
             os.rename(complete_path, old_path)
 
 
-stateManager = stateManagerScript.StateManager()
+stateManager = stateManagerScript.StateManager(params["output_dir"])
 tk = takeRecorder.TakeRecorder()
 
 KeepRunningTakeRecorder(tk, "").start()
 
-host = "wss://leffe.science.uva.nl:8043/unrealServer/"
+# host = "wss://leffe.science.uva.nl:8043/unrealServer/"
+host = params["websocketServer"]
 # host = "ws://localhost:5012/"
 if len(sys.argv) > 1:
     host = sys.argv[1]
