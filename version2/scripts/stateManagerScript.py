@@ -21,13 +21,17 @@ class StateManager:
             cls._instance = super(StateManager, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         if not hasattr(self, 'initialized'):  # Initialize once
             self.recording_status = Status.IDLE  # Default state
             self.gloss_name = None
             self.initialized = True
             self.level_sequence_name = None
+
             self.folder = "D:\\RecordingsUE\\"
+            if args:
+                print(args[0])
+                self.folder = args[0]
 
     def set_gloss_name(self, gloss_name):
         """Sets the glossName."""

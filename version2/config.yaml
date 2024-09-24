@@ -1,0 +1,15 @@
+# Path to the folder where the fbx animations are stored
+output_dir: "D:\\RecordingsUE\\"
+
+# Name of actor that is being recorded (used for skeleton identification and take identification)
+actor_name: "GlassesGuyRecord_C_1"
+
+# ----------------------------------------------  #
+# Clients and servers IP addresses and ports      #
+# ----------------------------------------------  #
+# Path flask server
+pathServerAddr:  'localhost'
+pathServerPort: 5001
+
+# Websocket that controls the statemachine and we need to callback to
+websocketServer: "wss://leffe.science.uva.nl:8043/unrealServer/"
