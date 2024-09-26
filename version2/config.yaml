@@ -13,3 +13,4 @@ pathServerPort: 5001
 
 # Websocket that controls the statemachine and we need to callback to
 websocketServer: "wss://leffe.science.uva.nl:8043/unrealServer/"
+# websocketServer: "ws://localhost:5012/"
