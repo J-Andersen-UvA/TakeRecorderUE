@@ -143,10 +143,10 @@ class KeepRunningTakeRecorder:
                 # Because converter auto increments the name of the file, we need to fetch the highest number and use that as path
                 if os.path.exists(path):
                     i = 1
-                    while os.path.exists(path):
-                        i += 1
+                    while os.path.exists(stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i}.glb"):
                         path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i}.glb"
-                    path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i-1}.glb"
+                        i += 1
+
                 print(f"Setting path of path server to: {path}")
                 self.pathServer.change_path(path)
                 callback.Callback().send_message_to("path", path, "/set_path", params["pathServerAddr"], params["pathServerPort"])
