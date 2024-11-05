@@ -13,6 +13,7 @@ import scripts.stateManagerScript as stateManagerScript
 import scripts.exportAndSend as exportAndSend
 import scripts.popUp as popUp
 import scripts.callback as callback
+import scripts.editorFuncs as editorFuncs
 
 # Set the parameters from the config file
 params = None
@@ -37,11 +38,12 @@ class KeepRunningTakeRecorder:
     """
 
     def __init__(self, tk: takeRecorder.TakeRecorder, file):
-        self.replayEnabled = False
+        self.replayEnabled = True
         self.keepLastRecording = True
         self.babylonAutoPlay = True
         self.pathServer = callback.PathFlaskApp(params["pathServerPort"])
         self.actorName = params["actor_name"]
+        self.replayActor = params["replay_actor_name"]
         # self.actorName = "GlassesGuyRecord_C_1"
     #     self.startRecordStatus = startRecordStatus
 
@@ -86,7 +88,30 @@ class KeepRunningTakeRecorder:
             ws_JSON = {
                 "handler": "stopRecordingConfirmed",
             }
-            wsCom.ws.send(json.dumps(ws_JSON))            
+            wsCom.ws.send(json.dumps(ws_JSON))    
+
+            if self.replayEnabled:
+                print("Replaying recorded animation...")
+                replay_actor = editorFuncs.get_actor_by_name(self.replayActor)
+                # Check if the actor reference was found
+                if replay_actor is None:
+                    raise ValueError(f"Actor '{self.replayActor}' not found in the current world.")
+
+                last_record = tk.fetch_last_recording()
+                if last_record is not None:
+                    last_record = last_record.get_full_name()
+                unrealTake = last_record.replace("LevelSequence ", "")
+                unrealScene = unrealTake.split(".")[1]
+                unrealTake = unrealTake.split(".")[0]
+                animLocation = unrealTake + "_Subscenes/Animation/GlassesGuyRecord" + "_" + unrealScene
+                animation_asset = unreal.load_asset(animLocation)
+
+                print(f"Replaying: {animLocation}")
+                # Call the replay_anim function with the found actor and correct animation asset
+                tk.replay_anim(
+                    replay_actor=replay_actor,
+                    anim=animation_asset
+                )        
 
         # if stateManager.get_recording_status() == stateManagerScript.Status.FBX_EXPORT:
         #     stateManager.set_recording_status(stateManagerScript.Status.IDLE)
@@ -108,12 +133,24 @@ class KeepRunningTakeRecorder:
         #         else:
         #             self.pathServer.change_path(stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb")
 
-        if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
-            if self.replayEnabled:
-                print("Replaying recorded animation...")
-                tk.start_replaying(
-                    levelSequence.SequencerTools(tk.fetch_last_recording(), "").get_level_sequence_actor_by_name(self.actorName),
-                )
+        # if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
+        #     if self.replayEnabled:
+        #         print("Replaying recorded animation...")
+        #         replay_actor = editorFuncs.get_actor_by_name(self.replayActor)
+        #         # Check if the actor reference was found
+        #         if replay_actor is None:
+        #             raise ValueError(f"Actor '{self.replayActor}' not found in the current world.")
+
+        #         last_record = tk.fetch_last_recording().get_full_name()
+        #         unrealTake = last_record.replace("LevelSequence ", "")
+        #         animLocation = unrealTake + "_Subscenes/Animation/GlassesGuyRecord" + "_" + unrealScene
+        #         animation_asset = unreal.load_asset(animLocation)
+
+        #         # Call the replay_anim function with the found actor and correct animation asset
+        #         tk.replay_anim(
+        #             replay_actor=replay_actor,
+        #             anim=animation_asset
+        #         )
 
         if stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_FBX:
             glosName = stateManager.get_gloss_name()
