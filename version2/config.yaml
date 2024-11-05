@@ -4,6 +4,9 @@ output_dir: "D:\\RecordingsUE\\"
 # Name of actor that is being recorded (used for skeleton identification and take identification)
 actor_name: "GlassesGuyRecord_C_1"
 
+# Name of the replay actor
+replay_actor_name: "playLastActor"
+
 # ----------------------------------------------  #
 # Clients and servers IP addresses and ports      #
 # ----------------------------------------------  #

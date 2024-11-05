@@ -76,16 +76,24 @@ class TakeRecorder:
         """
         self.take_recorder_panel.stop_recording()
 
-    def start_replaying(self, cur_level_sequence_actor):
+    def replay_last(self, replay_actor):
         """
         Start replaying.
 
         This function starts the replaying process using the take recorder panel.
         """
-        # call custom event from cur_level_sequence_actor to stop replay system (Event Stop Record)
-        cur_level_sequence_actor.call_method(
-            "Event Replay Recording", args=(self.fetch_last_recording(),)
-        )
+        # cur_level_sequence_actor.call_method(
+        #     "Event Replay Recording", args=(self.fetch_last_recording(),)
+        # )
+        replay_actor.call_method("playThisAnim", args=(self.fetch_last_recording(),))
+    
+    def replay_anim(self, replay_actor, anim):
+        """
+        Start replaying.
+
+        This function starts the replaying process using the take recorder panel.
+        """
+        replay_actor.call_method("playThisAnim", args=(anim,))
 
     def fetch_last_recording(self):
         """
