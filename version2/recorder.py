@@ -84,7 +84,35 @@ class KeepRunningTakeRecorder:
                 "handler": "startRecordingConfirmed",
             }
             wsCom.ws.send(json.dumps(ws_JSON))
-        
+
+        if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
+            replay_actor = editorFuncs.get_actor_by_name(self.replayActor)
+            # Check if the actor reference was found
+            if replay_actor is None:
+                raise ValueError(f"Actor '{self.replayActor}' not found in the current world.")
+
+            last_anim, location = self.tk.fetch_last_animation()
+            retries = 30
+            while last_anim is None and retries > 0:
+                latent_info = unreal.LatentActionInfo()
+                unreal.SystemLibrary.delay(None, 0.5, latent_info)
+                last_anim, location = self.tk.fetch_last_animation()
+                retries -= 1
+
+            if last_anim is None:
+                popUp.show_popup_message("replay", "No last recording found after multiple attempts. First recording has bug currently so try again if it's the first recording.")
+                return
+
+            print(f"Replaying animation at: {location}")
+            # Call the replay_anim function with the found actor and correct animation asset
+            self.tk.replay_anim(
+                replay_actor=replay_actor,
+                anim=last_anim
+            )
+            # self.tk.replay_last(replay_actor)
+
+            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+
         if stateManager.get_recording_status() == stateManagerScript.Status.STOP:
             self.tk.stop_recording()
             stateManager.set_recording_status(stateManagerScript.Status.IDLE)
@@ -93,31 +121,31 @@ class KeepRunningTakeRecorder:
             # }
             # wsCom.ws.send(json.dumps(ws_JSON))    
 
-            if self.replayEnabled:
-                print("Replaying recorded animation...")
-                replay_actor = editorFuncs.get_actor_by_name(self.replayActor)
-                # Check if the actor reference was found
-                if replay_actor is None:
-                    raise ValueError(f"Actor '{self.replayActor}' not found in the current world.")
+            # if self.replayEnabled:
+            #     print("Replaying recorded animation...")
+            #     replay_actor = editorFuncs.get_actor_by_name(self.replayActor)
+            #     # Check if the actor reference was found
+            #     if replay_actor is None:
+            #         raise ValueError(f"Actor '{self.replayActor}' not found in the current world.")
 
-                last_anim, location = self.tk.fetch_last_animation()
-                retries = 30
-                while last_anim is None and retries > 0:
-                    latent_info = unreal.LatentActionInfo()
-                    unreal.SystemLibrary.delay(None, 0.5, latent_info)
-                    last_anim, location = self.tk.fetch_last_animation()
-                    retries -= 1
+            #     last_anim, location = self.tk.fetch_last_animation()
+            #     retries = 30
+            #     while last_anim is None and retries > 0:
+            #         latent_info = unreal.LatentActionInfo()
+            #         unreal.SystemLibrary.delay(None, 0.5, latent_info)
+            #         last_anim, location = self.tk.fetch_last_animation()
+            #         retries -= 1
 
-                if last_anim is None:
-                    popUp.show_popup_message("replay", "No last recording found after multiple attempts. Maybe the recording is really big, we should implement a better way to handle this.")
-                    return
+            #     if last_anim is None:
+            #         popUp.show_popup_message("replay", "No last recording found after multiple attempts. First recording has bug currently so try again if it's the first recording.")
+            #         return
 
-                print(f"Replaying animation at: {location}")
-                # Call the replay_anim function with the found actor and correct animation asset
-                self.tk.replay_anim(
-                    replay_actor=replay_actor,
-                    anim=last_anim
-                )
+            #     print(f"Replaying animation at: {location}")
+            #     # Call the replay_anim function with the found actor and correct animation asset
+            #     self.tk.replay_anim(
+            #         replay_actor=replay_actor,
+            #         anim=last_anim
+            #     )
 
         # if stateManager.get_recording_status() == stateManagerScript.Status.FBX_EXPORT:
         #     stateManager.set_recording_status(stateManagerScript.Status.IDLE)

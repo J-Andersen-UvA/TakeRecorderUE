@@ -154,7 +154,9 @@ class websocketCommunication:
             ws_JSON = {
                 "handler": "stopRecordingConfirmed",
             }
-            self.ws.send(json.dumps(ws_JSON))    
+            self.ws.send(json.dumps(ws_JSON))
+
+            print(self.setStatus(stateManagerScript.Status.REPLAY_RECORD))
 
         if message["set"] == "fbxExport":
             print(self.setStatus(stateManagerScript.Status.FBX_EXPORT))
