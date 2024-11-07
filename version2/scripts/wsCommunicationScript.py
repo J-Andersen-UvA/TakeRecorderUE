@@ -6,6 +6,8 @@ import time
 import threading
 import ssl
 import scripts.stateManagerScript as stateManagerScript
+import scripts.popUp as popUp
+import scripts.editorFuncs as editorFuncs
 
 stateManager = stateManagerScript.StateManager()
 
@@ -17,13 +19,16 @@ class websocketCommunication:
             cls._instance = super(websocketCommunication, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, host, takeRecorder):
+    def __init__(self, host, takeRecorder, keepRunningTakeRecorder, actorName, replayActor):
         if not hasattr(self, 'initialized'):  # Initialize once
             self.host = host  # Store the host for later use
             self.tk = takeRecorder
+            self.actorName = actorName
+            self.replayActor = replayActor
             self.ws = None  # Initialize with no WebSocket connection
             self.thread = None  # Track the thread for the WebSocket
-            self.keep_running_take_recorder = None
+            self.keep_running_take_recorder = keepRunningTakeRecorder
+            self.last_message = None
 
             # Ensure previous WebSocket connection is closed before starting a new one
             self.close_connection()  # Close any existing connection
@@ -98,6 +103,8 @@ class websocketCommunication:
             }
             self.ws.send(json.dumps(ws_JSON))
 
+            print(response.text)
+
     def on_error(self, ws, error):
         print(f"WebSocket error: {error}")
 
@@ -119,6 +126,7 @@ class websocketCommunication:
 
     def on_message(self, ws, message):
         message = json.loads(message)
+        print(f"Received message: {message}")
 
         # Setting the status of the recorder lets the unreal tik function know what to do
         if message["set"] == "startRecord":
@@ -140,6 +148,13 @@ class websocketCommunication:
             
         if message["set"] == "stopRecord":
             print(self.setStatus(stateManagerScript.Status.STOP))
+            while stateManager.get_recording_status() != stateManagerScript.Status.IDLE:
+                time.sleep(0.5)
+
+            ws_JSON = {
+                "handler": "stopRecordingConfirmed",
+            }
+            self.ws.send(json.dumps(ws_JSON))    
 
         if message["set"] == "fbxExport":
             print(self.setStatus(stateManagerScript.Status.FBX_EXPORT))
@@ -148,7 +163,23 @@ class websocketCommunication:
             print(self.setStatus(stateManagerScript.Status.REPLAY_RECORD))
 
         if message["set"] == "exportLevelSequenceName":
+            # Check if last message was also exportLevelSequenceName, dont double export
+            if self.last_message == "exportLevelSequenceName":
+                return
+
             print(self.setStatus(stateManagerScript.Status.EXPORT_FBX))
+            anim, location = self.tk.fetch_last_animation()
+            if not self.tk.export_animation(location, stateManager.folder, stateManager.get_gloss_name()):
+                ws_JSON = {
+                    "handler": "fbxExportNameConfirmed",
+                    "glosName": stateManager.get_gloss_name(),
+                    "avatarName": "_"
+                }
+                self.ws.send(json.dumps(ws_JSON))
+                popUp.show_popup_message("export", f"No last recording found at {location}")
+            else:
+                self.send_fbx_to_url(stateManager.folder + stateManager.get_gloss_name() + ".fbx", avatar_name=self.actorName)
+                print(f"Sending last recording done: {stateManager.get_gloss_name()}\tPath: {location}")
 
         # TODO: I never see this message called, and therefore I have not made a status for it.
         if message["set"] == "fbxExportName":
@@ -163,7 +194,7 @@ class websocketCommunication:
             self.ws.send(json.dumps(ws_JSON))
 
         if message["set"] == "isRecording":
-            print(self.setStatus("recording"))
+            print(self.setStatus(stateManagerScript.Status.RECORDING))
             ws_JSON = {
                 "handler": "isRecordingConfirmed",
                 "isRecording": self.tk.is_recording()
@@ -172,3 +203,8 @@ class websocketCommunication:
 
         if message["set"] == "close":
             self.ws.close()
+        
+        self.last_message = message["set"]
+
+    def set_last_message(self, message):
+        self.last_message = message

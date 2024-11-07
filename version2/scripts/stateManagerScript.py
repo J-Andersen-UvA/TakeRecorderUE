@@ -8,6 +8,7 @@ class Status(Enum):
     EXPORT_FBX = "exportFbx"
     IDLE = "idle"
     RECORDING = "recording"
+    BUSY = "busy"
 
 class StateManager:
     """
@@ -27,6 +28,7 @@ class StateManager:
             self.gloss_name = None
             self.initialized = True
             self.level_sequence_name = None
+            self.export_status = Status.IDLE
 
             self.folder = "D:\\RecordingsUE\\"
             if args:
@@ -55,10 +57,22 @@ class StateManager:
         if status not in Status:
             raise ValueError(f"Invalid status: {status}")
         self.recording_status = status
+        print(f"Recording status set to: {status}")
 
     def get_recording_status(self) -> Status:
         """Returns the current recording status."""
         return self.recording_status
+    
+    def get_export_status(self):
+        """Returns the current export status."""
+        return self.export_status
+    
+    def flip_export_status(self):
+        """Flips the export status."""
+        if self.export_status == Status.IDLE:
+            self.export_status = Status.BUSY
+        else:
+            self.export_status = Status.IDLE
 
 # # Example Usage
 # sm = StateManager()

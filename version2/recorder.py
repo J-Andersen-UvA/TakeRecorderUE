@@ -38,10 +38,12 @@ class KeepRunningTakeRecorder:
     """
 
     def __init__(self, tk: takeRecorder.TakeRecorder, file):
+        print("Initializing KeepRunningTakeRecorder...")
         self.replayEnabled = True
-        self.keepLastRecording = True
-        self.babylonAutoPlay = True
-        self.pathServer = callback.PathFlaskApp(params["pathServerPort"])
+        self.keepLastRecording = False
+        self.tk = tk
+        # self.babylonAutoPlay = True
+        # self.pathServer = callback.PathFlaskApp(params["pathServerPort"])
         self.actorName = params["actor_name"]
         self.replayActor = params["replay_actor_name"]
         # self.actorName = "GlassesGuyRecord_C_1"
@@ -53,6 +55,7 @@ class KeepRunningTakeRecorder:
 
         Registers a Slate post-tick callback to execute 'tick' method.
         """
+        print("Starting Take Recorder...")
         self.slate_post_tick_handle = unreal.register_slate_post_tick_callback(self.tick)
         popUp.show_popup_message("KeepRunningTakeRecorder", f"Tick hook started, keepingLastRecording: {self.keepLastRecording}")
 
@@ -76,19 +79,19 @@ class KeepRunningTakeRecorder:
         """
         if stateManager.get_recording_status() == stateManagerScript.Status.START:
             stateManager.set_recording_status(stateManagerScript.Status.RECORDING)
-            tk.start_recording()
+            self.tk.start_recording()
             ws_JSON = {
                 "handler": "startRecordingConfirmed",
             }
             wsCom.ws.send(json.dumps(ws_JSON))
         
         if stateManager.get_recording_status() == stateManagerScript.Status.STOP:
-            tk.stop_recording()
+            self.tk.stop_recording()
             stateManager.set_recording_status(stateManagerScript.Status.IDLE)
-            ws_JSON = {
-                "handler": "stopRecordingConfirmed",
-            }
-            wsCom.ws.send(json.dumps(ws_JSON))    
+            # ws_JSON = {
+            #     "handler": "stopRecordingConfirmed",
+            # }
+            # wsCom.ws.send(json.dumps(ws_JSON))    
 
             if self.replayEnabled:
                 print("Replaying recorded animation...")
@@ -97,21 +100,24 @@ class KeepRunningTakeRecorder:
                 if replay_actor is None:
                     raise ValueError(f"Actor '{self.replayActor}' not found in the current world.")
 
-                last_record = tk.fetch_last_recording()
-                if last_record is not None:
-                    last_record = last_record.get_full_name()
-                unrealTake = last_record.replace("LevelSequence ", "")
-                unrealScene = unrealTake.split(".")[1]
-                unrealTake = unrealTake.split(".")[0]
-                animLocation = unrealTake + "_Subscenes/Animation/GlassesGuyRecord" + "_" + unrealScene
-                animation_asset = unreal.load_asset(animLocation)
+                last_anim, location = self.tk.fetch_last_animation()
+                retries = 30
+                while last_anim is None and retries > 0:
+                    latent_info = unreal.LatentActionInfo()
+                    unreal.SystemLibrary.delay(None, 0.5, latent_info)
+                    last_anim, location = self.tk.fetch_last_animation()
+                    retries -= 1
 
-                print(f"Replaying: {animLocation}")
+                if last_anim is None:
+                    popUp.show_popup_message("replay", "No last recording found after multiple attempts. Maybe the recording is really big, we should implement a better way to handle this.")
+                    return
+
+                print(f"Replaying animation at: {location}")
                 # Call the replay_anim function with the found actor and correct animation asset
-                tk.replay_anim(
+                self.tk.replay_anim(
                     replay_actor=replay_actor,
-                    anim=animation_asset
-                )        
+                    anim=last_anim
+                )
 
         # if stateManager.get_recording_status() == stateManagerScript.Status.FBX_EXPORT:
         #     stateManager.set_recording_status(stateManagerScript.Status.IDLE)
@@ -152,57 +158,64 @@ class KeepRunningTakeRecorder:
         #             anim=animation_asset
         #         )
 
-        if stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_FBX:
-            glosName = stateManager.get_gloss_name()
-            print(f"Exporting last recording: {glosName}...")
+        # if stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_FBX and stateManager.get_export_status() == stateManagerScript.Status.IDLE:
+        #     stateManager.flip_export_status()
+        #     glosName = stateManager.get_gloss_name()
+        #     print(f"Exporting last recording: {glosName}...")
 
-            last_record = tk.fetch_last_recording().get_full_name()
-            unrealTake = last_record.replace("LevelSequence ", "")
-            unrealScene = unrealTake.split(".")[1]
-            unrealTake = unrealTake.split(".")[0]
-            animLocation = unrealTake + "_Subscenes/Animation/GlassesGuyRecord" + "_" + unrealScene
-            unrealTake = unrealTake + "_Subscenes/GlassesGuyRecord" + "_" + unrealScene
-            print(unrealTake, glosName)
+        #     last_anim, location = self.tk.fetch_last_animation()
+        #     if last_anim is None:
+        #         popUp.show_popup_message("replay", "No last recording found")
+        #         stateManager.flip_export_status()
+        #         stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+        #         return
+            
+        #     self.rename_last_recording(stateManager.folder, glosName)
+        #     exportAndSend.export_animation(location, stateManager.folder, glosName)
+        #     wsCom.send_fbx_to_url(stateManager.folder + glosName + ".fbx", avatar_name=self.actorName)
 
-            self.rename_last_recording(stateManager.folder, glosName)
-            exportAndSend.export_animation(animLocation, stateManager.folder, glosName)
-            wsCom.send_fbx_to_url(stateManager.folder + glosName + ".fbx", avatar_name=self.actorName)
+        #     # print("Converting: ", stateManager.folder + glosName + ".fbx")
+        #     # result = subprocess.run(["C:\\Program Files\\nodejs\\node.exe", "C:\\Users\\VICON\\Desktop\\Code\\TakeRecorderUE\\version2\\autoConvertFBXGLB\\fbx2gltf.js", stateManager.folder + glosName + ".fbx"])
+        #     # print(result)
 
-            print("Converting: ", stateManager.folder + glosName + ".fbx")
-            result = subprocess.run(["C:\\Program Files\\nodejs\\node.exe", "C:\\Users\\VICON\\Desktop\\Code\\TakeRecorderUE\\version2\\autoConvertFBXGLB\\fbx2gltf.js", stateManager.folder + glosName + ".fbx"])
-            print(result)
+        #     # if self.babylonAutoPlay:
+        #     #     if not self.pathServer._is_running:
+        #     #         self.pathServer.launch()
+        #     #     path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb"
 
-            if self.babylonAutoPlay:
-                if not self.pathServer._is_running:
-                    self.pathServer.launch()
-                path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + ".glb"
+        #     #     # Because converter auto increments the name of the file, we need to fetch the highest number and use that as path
+        #     #     if os.path.exists(path):
+        #     #         i = 1
+        #     #         while os.path.exists(stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i}.glb"):
+        #     #             path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i}.glb"
+        #     #             i += 1
 
-                # Because converter auto increments the name of the file, we need to fetch the highest number and use that as path
-                if os.path.exists(path):
-                    i = 1
-                    while os.path.exists(stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i}.glb"):
-                        path = stateManager.folder + "glb\\" + stateManager.get_gloss_name() + f"_{i}.glb"
-                        i += 1
+        #     #     print(f"Setting path of path server to: {path}")
+        #     #     self.pathServer.change_path(path)
+        #     #     callback.Callback().send_message_to("path", path, "/set_path", params["pathServerAddr"], params["pathServerPort"])
 
-                print(f"Setting path of path server to: {path}")
-                self.pathServer.change_path(path)
-                callback.Callback().send_message_to("path", path, "/set_path", params["pathServerAddr"], params["pathServerPort"])
-
-                # Fetch path from server and check if it is the same as the path we just set, if not kill the server and launch a new one
-                if self.pathServer._path != path:
-                    callback.Callback().send_message_to("", "", "/turn_off", params["pathServerAddr"], params["pathServerPort"])
-                    self.pathServer.launch()
+        #     #     # Fetch path from server and check if it is the same as the path we just set, if not kill the server and launch a new one
+        #     #     if self.pathServer._path != path:
+        #     #         callback.Callback().send_message_to("", "", "/turn_off", params["pathServerAddr"], params["pathServerPort"])
+        #     #         self.pathServer.launch()
                     
 
-            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+        #     stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+        #     stateManager.flip_export_status()
 
-            # Lastly, let the websocket know that the fbx has been exported
-            # ws_JSON = {
-            #     "handler": "fbxExportNameConfirmed",
-            # }
-            # wsCom.ws.send(json.dumps(ws_JSON))
+        #     # Lastly, let the websocket know that the fbx has been exported
+        #     # ws_JSON = {
+        #     #     "handler": "fbxExportNameConfirmed",
+        #     # }
+        #     # wsCom.ws.send(json.dumps(ws_JSON))
+        
+        return
 
     def rename_last_recording(self, cur_path, gloss_name):
+        if not self.keepLastRecording:
+            return
+
+        print(f"Last recording: {gloss_name}\tPath: {cur_path}\tGoing to rename it...")
         # Check if last path already exists and rename it to _old_{1} if it does
         complete_path = cur_path + "\\" + gloss_name + ".fbx"
         if os.path.exists(complete_path):
@@ -210,21 +223,24 @@ class KeepRunningTakeRecorder:
             i = 1
             old_path = cur_path + "\\" + gloss_name + f"_old_{i}.fbx"
             while os.path.exists(old_path):
+                print(f"Old path already exists: {old_path}")
                 i += 1
                 old_path = cur_path + "\\" + gloss_name + f"_old_{i}.fbx"
             print(f"Renaming to: {old_path}")
             os.rename(complete_path, old_path)
 
 
-stateManager = stateManagerScript.StateManager(params["output_dir"])
-tk = takeRecorder.TakeRecorder()
 
-KeepRunningTakeRecorder(tk, "").start()
+print("Starting recorder...")
+stateManager = stateManagerScript.StateManager(params["output_dir"])
+tk = takeRecorder.TakeRecorder(stateManager)
+
+ktk = KeepRunningTakeRecorder(tk, "").start()
 
 # host = "wss://leffe.science.uva.nl:8043/unrealServer/"
 host = params["websocketServer"]
 # host = "ws://localhost:5012/"
 if len(sys.argv) > 1:
     host = sys.argv[1]
-wsCom = wsCommunicationScript.websocketCommunication(host, tk)
+wsCom = wsCommunicationScript.websocketCommunication(host, tk, ktk, params["actor_name"], params["replay_actor_name"])
 wsCom.keep_running_take_recorder = tk

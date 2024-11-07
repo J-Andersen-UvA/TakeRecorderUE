@@ -1,5 +1,9 @@
 import unreal
 import scripts.UEFileManagerScript as UEFileManager
+import scripts.popUp as popUp
+import os
+import scripts.stateManagerScript as stateManagerScript
+import scripts.exportAndSend as exportAndSend
 
 class TakeRecorder:
     """
@@ -22,7 +26,7 @@ class TakeRecorder:
     - is_recording(self): check if we are recording currently
     """
 
-    def __init__(self):
+    def __init__(self, stateManager):
         unreal.TakeRecorderBlueprintLibrary.open_take_recorder_panel()
         self.take_recorder_panel = (
             unreal.TakeRecorderBlueprintLibrary.get_take_recorder_panel()
@@ -35,6 +39,8 @@ class TakeRecorder:
 
         self.UEFileFuncs = UEFileManager.UEFileFunctionalities()
         self.TakeRecorderBPL = unreal.TakeRecorderBlueprintLibrary()
+        
+        self.stateManager = stateManager
 
     # make it callable
     def __call__(self):
@@ -103,6 +109,28 @@ class TakeRecorder:
         - level_sequence (unreal.LevelSequence): The last recorded level sequence.
         """
         return self.take_recorder_panel.get_last_recorded_level_sequence()
+        # return self.take_recorder_panel.get_level_sequence()
+
+    def fetch_last_animation(self):
+        """
+        Fetch last animation.
+
+        Returns:
+        - level_sequence (unreal.AnimSequence): The last recorded level sequence.
+        """
+        last_record = self.fetch_last_recording()
+
+        if last_record is None:
+            return None, None
+
+        last_record = last_record.get_full_name()
+        unrealTake = last_record.replace("LevelSequence ", "")
+        unrealScene = unrealTake.split(".")[1]
+        unrealTake = unrealTake.split(".")[0]
+        animLocation = unrealTake + "_Subscenes/Animation/GlassesGuyRecord" + "_" + unrealScene
+        animation_asset = unreal.load_asset(animLocation)
+
+        return animation_asset, animLocation
 
     def fetch_last_recording_assets(self):
         """
@@ -121,3 +149,65 @@ class TakeRecorder:
         return self.UEFileFuncs.fetch_files_from_dir_in_project(
             anim_dir, project_path, mode="UE"
         )
+
+    def take_recorder_ready(self):
+        """
+        Check if the take recorder is ready.
+
+        This function checks if the take recorder panel is ready for recording.
+
+        Returns:
+        - ready (bool): True if the take recorder is ready, False otherwise.
+        """
+        print(self.take_recorder_panel.can_start_recording())
+        return self.take_recorder_panel.can_start_recording()
+    
+    def error_test(self):
+        """
+        Check if the take recorder is ready.
+
+        This function checks if the take recorder panel is ready for recording.
+
+        Returns:
+        - ready (bool): True if the take recorder is ready, False otherwise.
+        """
+        print("Error Test")
+        popUp.show_popup_message("Error Test", "This is a pop-up message from Unreal Python!")
+        return False
+
+    def export_animation(self, location, folder, gloss_name):
+        glosName = self.stateManager.get_gloss_name()
+        print(f"Exporting last recording: {glosName}...")
+
+        last_anim, location = self.fetch_last_animation()
+        if last_anim is None:
+            popUp.show_popup_message("replay", "No last recording found")
+            self.stateManager.flip_export_status()
+            self.stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+            return False
+        
+        self.rename_last_recording(self.stateManager.folder, glosName)
+        exportAndSend.export_animation(location, self.stateManager.folder, glosName)
+
+        print(f"Exporting last recording done: {glosName}\tPath: {location}")
+
+        return True
+
+    def rename_last_recording(self, cur_path, gloss_name, keepLastRecording=True):
+        if not keepLastRecording:
+            return
+
+        print(f"Last recording: {gloss_name}\tPath: {cur_path}\tGoing to rename it...")
+        # Check if last path already exists and rename it to _old_{1} if it does
+        complete_path = cur_path + "\\" + gloss_name + ".fbx"
+        if os.path.exists(complete_path):
+            print(f"File already exists: {complete_path}")
+            i = 1
+            old_path = cur_path + "\\" + gloss_name + f"_old_{i}.fbx"
+            while os.path.exists(old_path):
+                print(f"Old path already exists: {old_path}")
+                i += 1
+                old_path = cur_path + "\\" + gloss_name + f"_old_{i}.fbx"
+            print(f"Renaming to: {old_path}")
+            os.rename(complete_path, old_path)
+
