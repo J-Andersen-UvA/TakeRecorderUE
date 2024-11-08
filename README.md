@@ -32,6 +32,12 @@ Here are some examples on how to communicate using Javascript:
   }
 ```
 
+## Why hook into the tick?
+In Unreal Engine, manyAPI calls, especially those related to the game world, UI updates, and editor functions, must be called from the main thread. This makes it difficult to use a waiting/listening Python program. If we let the socket listen and wait on the main thread, the entire engine stalls. The workaround: in Unreal Engine Python scripting, especially in editor contexts, hooking into the tick method (such as using register_slate_post_tick_callback) is a common approach for executing continuous or periodic tasks.
+Creating a new Python thread to handle functionality might seem like a simpler solution, but it poses several issues in the Unreal Engine environment:
+- Thread safety: Unreal Engine is not thread-safe by default. Many of its APIs cannot be called safely from a separate thread. This includes accessing game objects, modifying the world, and interacting with the editor UI.
+- Blocking operations: If you use blocking calls (e.g., waiting for a network response) on the main thread, it would freeze the UI and the entire editor/game. Conversely, if you use a new thread for non-blocking operations, you still need a way to synchronize the results back to the main thread.
+
+
 ## TODO:
-- Currently export paths are hardcoded.
 - When running the python file multiple times, multiple instances are opened in UE.
