@@ -125,12 +125,30 @@ class websocketCommunication:
         sys.exit()
 
     def on_message(self, ws, message):
+        """
+        Called when a message is received from the WebSocket connection.
+        Handle each message type here, e.g., start recording, stop recording.
+        Also set states for the recorder.py Unreal Engine main thread to act upon.
+        In some cases wait for the state to change before sending a confirmation message.
+        """
         message = json.loads(message)
         print(f"Received message: {message}")
 
         # Setting the status of the recorder lets the unreal tik function know what to do
         if message["set"] == "startRecord":
             print(self.setStatus(stateManagerScript.Status.START))
+            if (self.wait_for_state(stateManagerScript.Status.RECORDING) == False):
+                print("Failed to start recording")
+                ws_JSON = {
+                    "handler": "startRecordingDenied",
+                }
+                self.ws.send(json.dumps(ws_JSON))
+                return
+
+            ws_JSON = {
+                "handler": "startRecordingConfirmed",
+            }
+            self.ws.send(json.dumps(ws_JSON))
         
         if message["set"] == "broadcastGlos":
             print(stateManager.set_gloss_name(message["handler"]))
@@ -148,8 +166,13 @@ class websocketCommunication:
             
         if message["set"] == "stopRecord":
             print(self.setStatus(stateManagerScript.Status.STOP))
-            while stateManager.get_recording_status() != stateManagerScript.Status.IDLE:
-                time.sleep(0.5)
+            if (self.wait_for_state(stateManagerScript.Status.IDLE) == False):
+                print("Failed to stop recording")
+                ws_JSON = {
+                    "handler": "stopRecordingDenied",
+                }
+                self.ws.send(json.dumps(ws_JSON))
+                return
 
             ws_JSON = {
                 "handler": "stopRecordingConfirmed",
@@ -157,9 +180,6 @@ class websocketCommunication:
             self.ws.send(json.dumps(ws_JSON))
 
             print(self.setStatus(stateManagerScript.Status.REPLAY_RECORD))
-
-        if message["set"] == "fbxExport":
-            print(self.setStatus(stateManagerScript.Status.FBX_EXPORT))
 
         if message["set"] == "replayRecord":
             print(self.setStatus(stateManagerScript.Status.REPLAY_RECORD))
@@ -182,6 +202,11 @@ class websocketCommunication:
             else:
                 self.send_fbx_to_url(stateManager.folder + stateManager.get_gloss_name() + ".fbx", avatar_name=self.actorName)
                 print(f"Sending last recording done: {stateManager.get_gloss_name()}\tPath: {location}")
+            
+            print(self.setStatus(stateManagerScript.Status.IDLE))
+
+        if message["set"] == "fbxExport":
+            print(self.setStatus(stateManagerScript.Status.FBX_EXPORT))
 
         # TODO: I never see this message called, and therefore I have not made a status for it.
         if message["set"] == "fbxExportName":
@@ -210,3 +235,12 @@ class websocketCommunication:
 
     def set_last_message(self, message):
         self.last_message = message
+
+    def wait_for_state(self, status : stateManagerScript.Status, max_retries=10):
+        while stateManager.get_recording_status() != status:
+            time.sleep(0.5)
+            max_retries -= 1
+            if max_retries == 0:
+                return False
+
+        return True
