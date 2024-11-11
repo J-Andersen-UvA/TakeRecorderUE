@@ -44,6 +44,7 @@ class KeepRunningTakeRecorder:
         self.tk = tk
         self.actorName = params["actor_name"]
         self.replayActor = params["replay_actor_name"]
+        self.slate_post_tick_handle = None
 
     def start(self) -> None:
         """
@@ -57,14 +58,19 @@ class KeepRunningTakeRecorder:
 
     def stop(self) -> None:
         """
-        Stop the take recorder.
-
-        Unregisters the Slate post-tick callback.
+        Safely stop the take recorder and unregister the Slate post-tick callback.
         """
         if self.slate_post_tick_handle is not None:
-            unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
-            self.slate_post_tick_handle = None
-        unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
+            try:
+                print("Unregistering Slate post-tick callback...")
+                unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
+                self.slate_post_tick_handle = None
+                print("Slate post-tick callback unregistered successfully.")
+            except Exception as e:
+                print(f"Error during unregistration: {e}")
+                popUp.show_popup_message("KeepRunningTakeRecorder", f"Error during unregistration: {str(e)}")
+        else:
+            print("Slate post-tick callback was already unregistered or never registered.")
 
     def tick(self, delta_time: float) -> None:
         """
@@ -74,6 +80,10 @@ class KeepRunningTakeRecorder:
         If the recording state is "stop", stop recording.
         If the recording state is "replay_record", replay the last recording.
         """
+        if stateManager.get_recording_status() == stateManagerScript.Status.DIE:
+            self.stop()  # Unregister the callback when stopping
+            return
+
         if stateManager.get_recording_status() == stateManagerScript.Status.START:
             self.tk.start_recording()
             stateManager.set_recording_status(stateManagerScript.Status.RECORDING)
@@ -109,12 +119,14 @@ class KeepRunningTakeRecorder:
 
 print("Starting recorder...")
 stateManager = stateManagerScript.StateManager(params["output_dir"])
+stateManager.set_recording_status(stateManagerScript.Status.IDLE)
 tk = takeRecorder.TakeRecorder(stateManager)
 
-ktk = KeepRunningTakeRecorder(tk, "").start()
+ktk = KeepRunningTakeRecorder(tk, "")
+ktk.start()
 
 host = params["websocketServer"]
 if len(sys.argv) > 1:
     host = sys.argv[1]
 wsCom = wsCommunicationScript.websocketCommunication(host, tk, ktk, params["actor_name"], params["replay_actor_name"])
-wsCom.keep_running_take_recorder = tk
+# wsCom.keep_running_take_recorder = tk

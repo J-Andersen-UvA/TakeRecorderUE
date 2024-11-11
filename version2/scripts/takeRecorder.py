@@ -80,7 +80,11 @@ class TakeRecorder:
 
         This function stops the recording process using the take recorder panel.
         """
-        self.take_recorder_panel.stop_recording()
+        try:
+            self.take_recorder_panel.stop_recording()
+        except Exception as e:
+            print(f"Error stopping recording: {e}")
+            popUp.show_popup_message("Error stopping recording", f"Error stopping recording: {e}")
 
     def replay_last(self, replay_actor):
         """

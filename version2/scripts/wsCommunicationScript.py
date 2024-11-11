@@ -41,9 +41,13 @@ class websocketCommunication:
         if self.ws is not None and self.ws.sock and self.ws.sock.connected:
             print("Closing existing WebSocket connection...")
             self.ws.close()
-            self.thread.join()  # Wait for the WebSocket thread to close cleanly
+            if self.thread is not None:
+                self.thread.join()  # Wait for the WebSocket thread to close cleanly
+                print("WebSocket connection thread closed.")
         else:
             print("No active WebSocket connection to close.")
+
+        print(self.setStatus(stateManagerScript.Status.DIE))
 
     def open_connection(self):
         """
@@ -120,9 +124,7 @@ class websocketCommunication:
         self.ws.send(json.dumps(ws_JSON))
 
     def on_close(self, ws, close_status_code, close_msg):
-        self.keep_running_take_recorder.stop()
-        print("### CLOSED AND KILLED PYTHON PROCESS ###")
-        sys.exit()
+        print(f"WebSocket connection closed: {close_status_code} - {close_msg}")
 
     def on_message(self, ws, message):
         """
@@ -228,9 +230,10 @@ class websocketCommunication:
             }
             self.ws.send(json.dumps(ws_JSON))
 
-        if message["set"] == "close":
-            self.ws.close()
-        
+        if message["set"] == "close" or message["set"] == "closeProcess":
+            self.close_connection()  # Call the close_connection method instead of directly calling ws.close()
+            print(self.setStatus(stateManagerScript.Status.DIE))
+
         self.last_message = message["set"]
 
     def set_last_message(self, message):

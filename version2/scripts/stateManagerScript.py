@@ -9,6 +9,7 @@ class Status(Enum):
     IDLE = "idle"
     RECORDING = "recording"
     BUSY = "busy"
+    DIE = "die"
 
 class StateManager:
     """
