@@ -44,10 +44,10 @@ class websocketCommunication:
             if self.thread is not None:
                 self.thread.join()  # Wait for the WebSocket thread to close cleanly
                 print("WebSocket connection thread closed.")
+            print(self.setStatus(stateManagerScript.Status.DIE))
         else:
             print("No active WebSocket connection to close.")
 
-        print(self.setStatus(stateManagerScript.Status.DIE))
 
     def open_connection(self):
         """
