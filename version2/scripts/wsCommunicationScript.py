@@ -84,29 +84,39 @@ class websocketCommunication:
 
     def send_fbx_to_url(self, file_path, avatar_name="glassesGuy"):
         """
-        Synchronously send a file to a URL.
+        Synchronously send a file and metadata to a URL.
 
         Parameters:
         - file_path (str): File path of the file to send.
+        - avatar_name (str): Name of the avatar to send.
 
         Prints the response from the server after sending the file.
         """
         print("Sending file...")
         with open(file_path, "rb") as file:
+            # 'files' contains the file to upload
             files = {"file": (file_path, file, "multipart/form-data")}
+            
+            # 'data' contains additional form fields
+            data = {"avatarName": avatar_name}
+            
+            # Send the POST request
             response = requests.post(
                 "https://leffe.science.uva.nl:8043/fbx2glb/upload/",
                 files=files,
-                verify=False  # Skips SSL verification.
+                data=data,
+                verify=False  # Skips SSL verification
             )
-
+            
+            # Send the WebSocket message
             ws_JSON = {
                 "handler": "fbxExportNameConfirmed",
                 "glosName": stateManager.get_gloss_name(),
                 "avatarName": avatar_name
             }
             self.ws.send(json.dumps(ws_JSON))
-
+            
+            # Print the response
             print(response.text)
 
     def on_error(self, ws, error):
@@ -167,6 +177,14 @@ class websocketCommunication:
             self.ws.send(json.dumps(ws_JSON))
             
         if message["set"] == "stopRecord":
+            if (stateManager.get_recording_status() != stateManagerScript.Status.RECORDING):
+                print("Currently not recording, therefore cannot stop recording")
+                ws_JSON = {
+                    "handler": "stopRecordingDenied",
+                }
+                self.ws.send(json.dumps(ws_JSON))
+                return
+
             print(self.setStatus(stateManagerScript.Status.STOP))
             if (self.wait_for_state(stateManagerScript.Status.IDLE) == False):
                 print("Failed to stop recording")
@@ -182,11 +200,22 @@ class websocketCommunication:
             self.ws.send(json.dumps(ws_JSON))
 
             print(self.setStatus(stateManagerScript.Status.REPLAY_RECORD))
+            time.sleep(0.5)
 
         if message["set"] == "replayRecord":
             print(self.setStatus(stateManagerScript.Status.REPLAY_RECORD))
+            time.sleep(0.5)
 
         if message["set"] == "exportLevelSequenceName":
+            # Double waits (debugging purposes). It used to die on replay we expect that export is done before
+            # replay has had a chance to reach idle. No traces left currently since implementation of waits.
+            while stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
+                print("TEST: Waiting for replay to start and idle to return...")
+                time.sleep(0.5)
+
+            if (self.wait_for_state(stateManagerScript.Status.IDLE) == False):
+                print("IDLE state not reached, exporting anyway")
+
             # Check if last message was also exportLevelSequenceName, dont double export
             if self.last_message == "exportLevelSequenceName":
                 return

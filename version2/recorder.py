@@ -95,15 +95,20 @@ class KeepRunningTakeRecorder:
             return
 
         if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
+            print("TEST: Replaying last recording...")
             replay_actor = editorFuncs.get_actor_by_name(self.replayActor)
             # Check if the actor reference was found
             if replay_actor is None:
+                stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+                popUp.show_popup_message("replay", f"Actor '{self.replayActor}' not found in the current world. Set state to idle.")
                 raise ValueError(f"Actor '{self.replayActor}' not found in the current world.")
 
+            print("TEST: FETCHING LAST ANIMATION")
             last_anim, location = self.tk.fetch_last_animation()
 
             if last_anim is None:
-                popUp.show_popup_message("replay", "No last recording found.")
+                stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+                popUp.show_popup_message("replay", "No last recording found. Set state to idle.")
                 return
 
             print(f"Replaying animation at: {location}")
