@@ -209,9 +209,9 @@ class websocketCommunication:
         if message["set"] == "exportLevelSequenceName":
             # Double waits (debugging purposes). It used to die on replay we expect that export is done before
             # replay has had a chance to reach idle. No traces left currently since implementation of waits.
-            while stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
-                print("TEST: Waiting for replay to start and idle to return...")
-                time.sleep(0.5)
+            # while stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
+            #     print("TEST: Waiting for replay to start and idle to return...")
+            #     time.sleep(0.5)
 
             if (self.wait_for_state(stateManagerScript.Status.IDLE) == False):
                 print("IDLE state not reached, exporting anyway")

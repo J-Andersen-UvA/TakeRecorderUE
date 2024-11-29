@@ -14,12 +14,10 @@ import scripts.exportAndSend as exportAndSend
 import scripts.popUp as popUp
 import scripts.callback as callback
 import scripts.editorFuncs as editorFuncs
+import params as paramsmanager
 
 # Set the parameters from the config file
-params = None
-# with open('C:\\Users\\VICON\\Desktop\\Code\\TakeRecorderUE\\version2\\config.yaml', 'r') as file:
-with open('D:\\MOCAP\\Scripts\\TakeRecorderUE\\version2\\config.yaml', 'r') as file:
-    params = yaml.safe_load(file)
+params = paramsmanager.Params().get()
 
 class KeepRunningTakeRecorder:
     """
@@ -84,7 +82,7 @@ class KeepRunningTakeRecorder:
         # When resetting, we are waiting for the take recorder to be ready (making it so he has saved the last recording)
         if stateManager.get_recording_status() == stateManagerScript.Status.RESETTING:
             if self.tk.take_recorder_ready():
-                print("TEST: Resetting state to idle.")
+                print("Resetting state to idle.")
                 stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             return
 
@@ -107,7 +105,8 @@ class KeepRunningTakeRecorder:
             replay_actor = editorFuncs.get_actor_by_name(self.replayActor)
             # Check if the actor reference was found
             if replay_actor is None:
-                stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+                # stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+                stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
                 popUp.show_popup_message("replay", f"Actor '{self.replayActor}' not found in the current world. Set state to idle.")
                 raise ValueError(f"Actor '{self.replayActor}' not found in the current world.")
 
@@ -115,7 +114,8 @@ class KeepRunningTakeRecorder:
             last_anim, location = self.tk.fetch_last_animation()
 
             if last_anim is None:
-                stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+                # stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+                stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
                 popUp.show_popup_message("replay", "No last recording found. Set state to idle.")
                 return
 
@@ -125,7 +125,8 @@ class KeepRunningTakeRecorder:
                 anim=last_anim
             )
 
-            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+            stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
+            # stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             return
         
         return
