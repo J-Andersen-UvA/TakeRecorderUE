@@ -10,6 +10,7 @@ class Status(Enum):
     RECORDING = "recording"
     BUSY = "busy"
     DIE = "die"
+    RESETTING = "resetting"
 
 class StateManager:
     """
@@ -31,10 +32,15 @@ class StateManager:
             self.level_sequence_name = None
             self.export_status = Status.IDLE
 
-            self.folder = "D:\\RecordingsUE\\"
+            self.folder = None
             if args:
-                print(args[0])
-                self.folder = args[0]
+                self.set_folder(args[0])
+    
+    def set_folder(self, folder):
+        """Sets the folder path."""
+        print(f"Setting folder to: {folder}")
+        self.folder = folder
+        return self.folder
 
     def set_gloss_name(self, gloss_name):
         """Sets the glossName."""

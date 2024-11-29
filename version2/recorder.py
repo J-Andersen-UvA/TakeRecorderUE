@@ -17,7 +17,8 @@ import scripts.editorFuncs as editorFuncs
 
 # Set the parameters from the config file
 params = None
-with open('C:\\Users\\VICON\\Desktop\\Code\\TakeRecorderUE\\version2\\config.yaml', 'r') as file:
+# with open('C:\\Users\\VICON\\Desktop\\Code\\TakeRecorderUE\\version2\\config.yaml', 'r') as file:
+with open('D:\\MOCAP\\Scripts\\TakeRecorderUE\\version2\\config.yaml', 'r') as file:
     params = yaml.safe_load(file)
 
 class KeepRunningTakeRecorder:
@@ -80,6 +81,13 @@ class KeepRunningTakeRecorder:
         If the recording state is "stop", stop recording.
         If the recording state is "replay_record", replay the last recording.
         """
+        # When resetting, we are waiting for the take recorder to be ready (making it so he has saved the last recording)
+        if stateManager.get_recording_status() == stateManagerScript.Status.RESETTING:
+            if self.tk.take_recorder_ready():
+                print("TEST: Resetting state to idle.")
+                stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+            return
+
         if stateManager.get_recording_status() == stateManagerScript.Status.DIE:
             self.stop()  # Unregister the callback when stopping
             return
@@ -91,7 +99,7 @@ class KeepRunningTakeRecorder:
 
         if stateManager.get_recording_status() == stateManagerScript.Status.STOP:
             self.tk.stop_recording()
-            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+            stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
             return
 
         if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
@@ -124,6 +132,7 @@ class KeepRunningTakeRecorder:
 
 print("Starting recorder...")
 stateManager = stateManagerScript.StateManager(params["output_dir"])
+stateManager.set_folder(params["output_dir"])
 stateManager.set_recording_status(stateManagerScript.Status.IDLE)
 tk = takeRecorder.TakeRecorder(stateManager)
 
