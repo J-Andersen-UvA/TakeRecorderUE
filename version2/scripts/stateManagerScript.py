@@ -11,6 +11,8 @@ class Status(Enum):
     BUSY = "busy"
     DIE = "die"
     RESETTING = "resetting"
+    EXPORT_SUCCESS = "exportSuccess"
+    EXPORT_FAIL = "exportFail"
 
 class StateManager:
     """
@@ -31,6 +33,7 @@ class StateManager:
             self.initialized = True
             self.level_sequence_name = None
             self.export_status = Status.IDLE
+            self.last_location = None
 
             self.folder = None
             if args:
@@ -50,6 +53,14 @@ class StateManager:
     def get_gloss_name(self):
         """Returns the current glossName."""
         return self.gloss_name
+    
+    def set_last_location(self, location):
+        print(f"Setting last location: {location}")
+        self.last_location = location
+        return self.last_location
+    
+    def get_last_location(self):
+        return self.last_location
     
     def set_level_sequence_name(self, level_sequence_name):
         """Sets the level sequence name."""

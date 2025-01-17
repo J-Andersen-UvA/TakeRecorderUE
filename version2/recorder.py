@@ -17,8 +17,8 @@ import scripts.editorFuncs as editorFuncs
 
 # Set the parameters from the config file
 params = None
-# with open('C:\\Users\\VICON\\Desktop\\Code\\TakeRecorderUE\\version2\\config.yaml', 'r') as file:
-with open('D:\\MOCAP\\Scripts\\TakeRecorderUE\\version2\\config.yaml', 'r') as file:
+# with open('D:\\MOCAP\\Scripts\\TakeRecorderUE\\version2\\config.yaml', 'r') as file:
+with open('C:\\Users\\VICON\\Desktop\\Code\\TakeRecorderUE\\version2\\config.yaml', 'r') as file:
     params = yaml.safe_load(file)
 
 class KeepRunningTakeRecorder:
@@ -127,7 +127,17 @@ class KeepRunningTakeRecorder:
 
             stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             return
-        
+
+        # Exporting needs to be done through the main thread since UE5.5, the subthread communicating with the websocket therefore
+        # communicates with this main thread loop
+        if stateManager.get_recording_status() == stateManagerScript.Status.FBX_EXPORT or stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_FBX:
+            anim, location = self.tk.fetch_last_animation()
+            stateManager.set_last_location(location)
+            if not self.tk.export_animation(location, stateManager.folder, stateManager.get_gloss_name()):
+                stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
+            else:
+                stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
+
         return
 
 print("Starting recorder...")

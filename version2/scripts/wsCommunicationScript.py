@@ -221,20 +221,28 @@ class websocketCommunication:
                 return
 
             print(self.setStatus(stateManagerScript.Status.EXPORT_FBX))
-            anim, location = self.tk.fetch_last_animation()
-            if not self.tk.export_animation(location, stateManager.folder, stateManager.get_gloss_name()):
+
+            # Wait for idle state before dumping info to the websocket
+            if (self.wait_for_state(stateManagerScript.Status.EXPORT_SUCCESS) == False):
+                print("Failed to export fbx, within time limit")
+            
+            if (stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_FAIL):
                 ws_JSON = {
                     "handler": "fbxExportNameConfirmed",
                     "glosName": stateManager.get_gloss_name(),
                     "avatarName": "_"
                 }
                 self.ws.send(json.dumps(ws_JSON))
-                popUp.show_popup_message("export", f"No last recording found at {location}")
-            else:
+                popUp.show_popup_message("export", f"No last recording found at {stateManager.last_location}")
+            elif (stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_SUCCESS):
                 self.send_fbx_to_url(stateManager.folder + stateManager.get_gloss_name() + ".fbx", avatar_name=self.actorName)
-                print(f"Sending last recording done: {stateManager.get_gloss_name()}\tPath: {location}")
+                print(f"Sending last recording done: {stateManager.get_gloss_name()}\tPath: {stateManager.last_location}")
+            elif (stateManager.get_export_status() == stateManagerScript.Status.IDLE):
+                print("Exporting failed, but not due to error, state was returned to idle")
+            else:
+                print("Exporting failed, unknown reason")
             
-            print(self.setStatus(stateManagerScript.Status.IDLE))
+            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
 
         if message["set"] == "fbxExport":
             print(self.setStatus(stateManagerScript.Status.FBX_EXPORT))
