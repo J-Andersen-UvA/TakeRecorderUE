@@ -10,6 +10,9 @@ class Status(Enum):
     RECORDING = "recording"
     BUSY = "busy"
     DIE = "die"
+    RESETTING = "resetting"
+    EXPORT_SUCCESS = "exportSuccess"
+    EXPORT_FAIL = "exportFail"
 
 class StateManager:
     """
@@ -30,11 +33,17 @@ class StateManager:
             self.initialized = True
             self.level_sequence_name = None
             self.export_status = Status.IDLE
+            self.last_location = None
 
-            self.folder = "D:\\RecordingsUE\\"
+            self.folder = None
             if args:
-                print(args[0])
-                self.folder = args[0]
+                self.set_folder(args[0])
+    
+    def set_folder(self, folder):
+        """Sets the folder path."""
+        print(f"Setting folder to: {folder}")
+        self.folder = folder
+        return self.folder
 
     def set_gloss_name(self, gloss_name):
         """Sets the glossName."""
@@ -44,6 +53,14 @@ class StateManager:
     def get_gloss_name(self):
         """Returns the current glossName."""
         return self.gloss_name
+    
+    def set_last_location(self, location):
+        print(f"Setting last location: {location}")
+        self.last_location = location
+        return self.last_location
+    
+    def get_last_location(self):
+        return self.last_location
     
     def set_level_sequence_name(self, level_sequence_name):
         """Sets the level sequence name."""
