@@ -7,6 +7,16 @@ This project provides a simple interface to control the Take Recorder within Unr
 - Unreal Engine 
 - Python integration enabled in Unreal Engine (we are using a vscode plugin https://marketplace.visualstudio.com/items?itemName=NilsSoderman.ue-python)
 
+Python packages (make sure to install them on the Unreal Python):
+- pyyaml
+- httpx
+- requests
+- websocket
+- websockets
+- websocket-client
+- flask
+- flask_cors
+
 Not Necessary, but Helpful to Know:
 - In the Take Recorder, set the countdown to 0 if you don’t want to see the countdown.
 - Ensure the Root Take Save Directory is set to /Cinematics/Takes if you want the script to use the default path.
