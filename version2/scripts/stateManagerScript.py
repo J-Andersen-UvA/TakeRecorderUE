@@ -1,4 +1,6 @@
 from enum import Enum
+import os
+from datetime import datetime
 
 class Status(Enum):
     START = "start"
@@ -43,6 +45,12 @@ class StateManager:
         """Sets the folder path."""
         print(f"Setting folder to: {folder}")
         self.folder = folder
+        # Create a subfolder based on the current date
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        date_folder = os.path.join(self.folder, current_date)
+        os.makedirs(date_folder, exist_ok=True)
+        print(f"Created subfolder: {date_folder}")
+        self.folder = date_folder
         return self.folder
 
     def set_gloss_name(self, gloss_name):
