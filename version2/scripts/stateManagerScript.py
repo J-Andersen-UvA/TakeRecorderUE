@@ -50,7 +50,7 @@ class StateManager:
         date_folder = os.path.join(self.folder, current_date)
         os.makedirs(date_folder, exist_ok=True)
         print(f"Created subfolder: {date_folder}")
-        self.folder = date_folder
+        self.folder = date_folder + "\\"
         return self.folder
 
     def set_gloss_name(self, gloss_name):
