@@ -45,24 +45,24 @@ class ExportandSend:
             )
         )
 
-    def execExportLast(self) -> None:
-        """
-        Execute the export operation.
+    # def execExportLast(self) -> None:
+    #     """
+    #     Execute the export operation.
 
-        Creates a SequencerTools instance to fetch the last recording and
-        export it using asyncio to send the file to a specified URL.
-        """
-        last_recording = tk.fetch_last_recording()
-        self.sequencerTools.set_root_sequence(last_recording)
-        self.sequencerTools.set_level_sequence(last_recording)
-        self.sequencerTools.set_file(self.file)
-        self.sequencerTools.execute_export()
+    #     Creates a SequencerTools instance to fetch the last recording and
+    #     export it using asyncio to send the file to a specified URL.
+    #     """
+    #     last_recording = tk.fetch_last_recording()
+    #     self.sequencerTools.set_root_sequence(last_recording)
+    #     self.sequencerTools.set_level_sequence(last_recording)
+    #     self.sequencerTools.set_file(self.file)
+    #     self.sequencerTools.execute_export()
 
-        asyncio.run(
-            self.send_file_to_url(
-                self.file, "https://leffe.science.uva.nl:8043/fbx2glb/upload/"
-            )
-        )
+    #     asyncio.run(
+    #         self.send_file_to_url(
+    #             self.file, "https://leffe.science.uva.nl:8043/fbx2glb/upload/"
+    #         )
+    #     )
 
     def done(self, future):
         print(future.result())
