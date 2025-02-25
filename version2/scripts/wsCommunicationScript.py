@@ -273,6 +273,12 @@ class websocketCommunication:
 
         self.last_message = message["set"]
 
+    def send_last_replay_failed(self):
+        ws_JSON = {
+            "handler": "replayFailed",
+        }
+        self.ws.send(json.dumps(ws_JSON))
+
     def set_last_message(self, message):
         self.last_message = message
 
