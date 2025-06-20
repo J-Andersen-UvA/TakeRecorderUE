@@ -1,6 +1,7 @@
 from enum import Enum
 import os
 from datetime import datetime
+import re
 
 class Status(Enum):
     START = "start"
@@ -16,7 +17,6 @@ class Status(Enum):
     RESETTING = "resetting"
     EXPORT_SUCCESS = "exportSuccess"
     EXPORT_FAIL = "exportFail"
-    TORCH_TOGGLE = "torchToggle"
 
 class StateManager:
     """
@@ -62,9 +62,15 @@ class StateManager:
         self.folder = date_folder + "\\"
         return self.folder
 
+    @staticmethod
+    def _sanitize_name(name: str, replacement: str = "_") -> str:
+        # any character _not_ in A–Z a–z 0–9 space _ or -
+        _SANITIZE_RE = re.compile(r'[^0-9A-Za-z _-]')
+        return _SANITIZE_RE.sub(replacement, name)
+
     def set_gloss_name(self, gloss_name):
         """Sets the glossName."""
-        self.gloss_name = gloss_name
+        self.gloss_name = self._sanitize_name(gloss_name)
         return self.gloss_name
 
     def get_gloss_name(self):

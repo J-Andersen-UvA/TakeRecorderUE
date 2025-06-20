@@ -3,8 +3,8 @@
 output_dir: "D:\\MOCAP\\Recordings\\RecordingsUE\\"
 
 # Name of actor that is being recorded (used for skeleton identification and take identification)
-actor_name: "GlassesGuyRecord_C_1"
-actor_name_shorthand: "GlassesGuyRecord"
+actor_name: "mageGuyRecord_C_2"
+actor_name_shorthand: "mageGuyRecord"
 
 # Name of the replay actor
 replay_actor_name: "playLastActor"
@@ -17,8 +17,5 @@ pathServerAddr:  'localhost'
 pathServerPort: 5001
 
 # Websocket that controls the statemachine and we need to callback to
-websocketServer: "wss://signcollect.nl/unrealServer/"
-# websocketServer: "wss://leffe.science.uva.nl:8043/unrealServer/"
+websocketServer: "wss://leffe.science.uva.nl:8043/unrealServer/"
 # websocketServer: "ws://localhost:5012/"
-
-uploadLocation: "https://signcollect.nl/fbx2glb/upload/"
