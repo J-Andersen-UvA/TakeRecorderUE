@@ -4,6 +4,7 @@ import scripts.popUp as popUp
 import os
 import scripts.stateManagerScript as stateManagerScript
 import scripts.exportAndSend as exportAndSend
+import re
 
 class TakeRecorder:
     """
@@ -27,38 +28,45 @@ class TakeRecorder:
     """
 
     def __init__(self, stateManager):
-        unreal.TakeRecorderBlueprintLibrary.open_take_recorder_panel()
-        self.take_recorder_panel = (
-            unreal.TakeRecorderBlueprintLibrary.get_take_recorder_panel()
-        )
-
-        # a = unreal.LayersSubsystem()
-        # self.world = a.get_world()
-        self.levelSequence = unreal.LevelSequence
-        self.metadata = unreal.TakeMetaData
-
-        self.UEFileFuncs = UEFileManager.UEFileFunctionalities()
-        self.TakeRecorderBPL = unreal.TakeRecorderBlueprintLibrary()
-        
         self.stateManager = stateManager
+
+        unreal.TakeRecorderBlueprintLibrary.open_take_recorder_panel()
+        self.take_recorder_panel = unreal.TakeRecorderBlueprintLibrary.get_take_recorder_panel()
+        self.levelSequence = unreal.LevelSequence
+        self.metadata = self.take_recorder_panel.get_take_meta_data()
+        self.UEFileFuncs = UEFileManager.UEFileFunctionalities()        
 
     # make it callable
     def __call__(self):
         return True
 
+    @staticmethod
+    def _sanitize_name(name: str, replacement: str = "_") -> str:
+        # any character _not_ in A–Z a–z 0–9 space _ or -
+        _SANITIZE_RE = re.compile(r'[^0-9A-Za-z _-]')
+        return _SANITIZE_RE.sub(replacement, name)
+
     def get_slate(self) -> str:
         """Retrieve the slate information from the take recorder panel."""
-        lala = self.TakeRecorderBPL.get_take_recorder_panel()
-        return lala.get_take_meta_data().get_slate()
+        return self.metadata.get_slate()
+
+    def set_slate_name(self, name : str) -> None:
+        """
+        Sets the slate name for the Take Recorder panel.
+        
+        :param name: The name to set as the slate.
+        """
+        clean_name = self._sanitize_name(name)
+        self.metadata.set_slate(clean_name)
 
     def get_sources(self):
         """Retrieve the sources from the take recorder panel."""
-        lala = self.TakeRecorderBPL.get_take_recorder_panel()
+        lala = unreal.TakeRecorderBlueprintLibrary().get_take_recorder_panel()
         return lala.get_sources()
 
     def get_slate_from_take(self) -> str:
         """Retrieve the slate information from the current take."""
-        lala = self.TakeRecorderBPL.get_take_recorder_panel()
+        lala = unreal.TakeRecorderBlueprintLibrary().get_take_recorder_panel()
         lala.get_class()
         return unreal.TakeMetaData().get_slate()
 
@@ -186,33 +194,14 @@ class TakeRecorder:
 
         last_anim, location = self.fetch_last_animation(actor_name=actor_name)
         if last_anim is None:
-            popUp.show_popup_message("replay", "No last recording found")
             self.stateManager.flip_export_status()
             self.stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+            popUp.show_popup_message("replay", "[TakeRecorder.py] No last recording found")
             return False
         
-        self.rename_last_recording(self.stateManager.folder, glosName)
         exportAndSend.export_animation(location, self.stateManager.folder, glosName)
 
         print(f"Exporting last recording done: {glosName}\tPath: {location}")
 
         return True
-
-    def rename_last_recording(self, cur_path, gloss_name, keepLastRecording=True):
-        if not keepLastRecording:
-            return
-
-        print(f"Last recording: {gloss_name}\tPath: {cur_path}\tGoing to rename it...")
-        # Check if last path already exists and rename it to _old_{1} if it does
-        complete_path = cur_path + "\\" + gloss_name + ".fbx"
-        if os.path.exists(complete_path):
-            print(f"File already exists: {complete_path}")
-            i = 1
-            old_path = cur_path + "\\" + gloss_name + f"_old_{i}.fbx"
-            while os.path.exists(old_path):
-                print(f"Old path already exists: {old_path}")
-                i += 1
-                old_path = cur_path + "\\" + gloss_name + f"_old_{i}.fbx"
-            print(f"Renaming to: {old_path}")
-            os.rename(complete_path, old_path)
 

@@ -55,9 +55,9 @@ class KeepRunningTakeRecorder:
 
         Registers a Slate post-tick callback to execute 'tick' method.
         """
-        print("Starting Take Recorder...")
+        print("[recorder.py] Starting Take Recorder...")
         self.slate_post_tick_handle = unreal.register_slate_post_tick_callback(self.tick)
-        popUp.show_popup_message("KeepRunningTakeRecorder", f"Tick hook started, keeping double recordings: True")
+        popUp.show_popup_message("KeepRunningTakeRecorder", f"[recorder.py] Tick hook started, keeping double recordings: True")
 
     def stop(self) -> None:
         """
@@ -65,15 +65,15 @@ class KeepRunningTakeRecorder:
         """
         if self.slate_post_tick_handle is not None:
             try:
-                print("Unregistering Slate post-tick callback...")
+                print("[recorder.py] Unregistering Slate post-tick callback...")
                 unreal.unregister_slate_post_tick_callback(self.slate_post_tick_handle)
                 self.slate_post_tick_handle = None
-                print("Slate post-tick callback unregistered successfully.")
+                print("[recorder.py] Slate post-tick callback unregistered successfully.")
             except Exception as e:
-                print(f"Error during unregistration: {e}")
-                popUp.show_popup_message("KeepRunningTakeRecorder", f"Error during unregistration: {str(e)}")
+                print(f"[recorder.py] Error during unregistration: {e}")
+                popUp.show_popup_message("KeepRunningTakeRecorder", f"[recorder.py] Error during unregistration: {str(e)}")
         else:
-            print("Slate post-tick callback was already unregistered or never registered.")
+            print("[recorder.py] Slate post-tick callback was already unregistered or never registered.")
 
     def tick(self, delta_time: float) -> None:
         """
@@ -85,9 +85,8 @@ class KeepRunningTakeRecorder:
         """
         # When resetting, we are waiting for the take recorder to be ready (making it so he has saved the last recording)
         if stateManager.get_recording_status() == stateManagerScript.Status.RESETTING:
-            if self.tk.take_recorder_ready():
-                print("Resetting state to idle.")
-                stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+            print("[recorder.py] Resetting state to idle.")
             
             if self.resettingPopUpText:
                 popUp.show_popup_message(self.resettingPopUpTitle, self.resettingPopUpText)
@@ -100,6 +99,8 @@ class KeepRunningTakeRecorder:
             return
 
         if stateManager.get_recording_status() == stateManagerScript.Status.START:
+            self.tk.set_slate_name(stateManager.get_gloss_name())
+            print(f"[recorder.py] Starting recording with slate name: {stateManager.get_gloss_name()}")
             self.tk.start_recording()
             stateManager.set_recording_status(stateManagerScript.Status.RECORDING)
             return
@@ -110,49 +111,33 @@ class KeepRunningTakeRecorder:
             return
 
         if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
-            print("TEST: Replaying last recording...")
-            # replay_actor = editorFuncs.get_actor_by_name(self.replayActor)
-            # # Check if the actor reference was found
-            # if replay_actor is None:
-            #     print(f"Actor '{self.replayActor}' not found in the current world. Retrying 5 times then Set state to resetting.")
-            #     for i in range(5):
-            #         replay_actor = editorFuncs.get_actor_by_name(self.replayActor)
-            #         if replay_actor is not None:
-            #             break
-            #     # stateManager.set_recording_status(stateManagerScript.Status.IDLE)
-            #     stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
-            #     popUp.show_popup_message("replay", f"Actor '{self.replayActor}' not found in the current world. Set state to idle.")
-            #     raise ValueError(f"Actor '{self.replayActor}' not found in the current world.")
-
-            print("TEST: FETCHING LAST ANIMATION")
+            print("[recorder.py] Replaying last recording...")
             last_anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
 
-            if last_anim is None:
+            if last_anim is None or location == stateManager.get_last_location():
                 for _ in range(5):
                     last_anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
                     if last_anim is not None:
                         break
 
                 # stateManager.set_recording_status(stateManagerScript.Status.IDLE)
-                self.resettingPopUpText = "No last recording found. Set state to idle."
+                self.resettingPopUpText = "[recorder.py] No last recording found. Set state to idle."
                 self.resettingPopUpTitle = "replay"
+                if location == stateManager.get_last_location():
+                    self.resettingPopUpText = "[recorder.py] Replaying the same recording. Set state to idle. Please re-record if you want the export to work."
+                    self.resettingPopUpTitle = "replay"
+
                 stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
                 return
 
-            # Using the statemanager, check if the location is the same as the last location (if it is, we are replaying the same recording)
-            # This happens due to UnrealEngine not saving the last recording in time, it can take a while. Therefore we show a popup message
-            if location == stateManager.get_last_location():
-                self.resettingPopUpText = "Replaying the same recording. Set state to idle. Please re-record if you want the export to work."
-                self.resettingPopUpTitle = "replay"
-                stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
-                return
-
-            print(f"Replaying animation at: {location}")
+            print(f"[recorder.py] Replaying animation at: {location}")
             self.tk.replay_anim(
                 replay_actor=self.replayActor,
                 anim=last_anim
             )
 
+            self.resettingPopUpText = None
+            self.resettingPopUpTitle = None
             stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
             # stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             return
@@ -167,15 +152,15 @@ class KeepRunningTakeRecorder:
             else:
                 stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
 
-        if stateManager.get_recording_status() == stateManagerScript.Status.TORCH_TOGGLE:
-            print("Toggling torch...")
-            extraFuncs.torchToggle(editorFuncs.get_actor_by_name(self.actorName))
-            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
-            return
+        # If the recording status is idle, we check if the gloss name is different from the last one
+        if stateManager.get_recording_status() == stateManagerScript.Status.IDLE:
+            if self.tk._sanitize_name(stateManager.get_gloss_name()) != self.tk.get_slate():
+                print(f"[recorder.py] Gloss name changed from {self.tk.get_slate()} to {self.tk._sanitize_name(stateManager.get_gloss_name())}")
+                self.tk.set_slate_name(stateManager.get_gloss_name())
 
         return
 
-print("Starting recorder...")
+print("[recorder.py] Starting recorder...")
 stateManager = stateManagerScript.StateManager(params["output_dir"])
 stateManager.set_folder(params["output_dir"])
 stateManager.set_recording_status(stateManagerScript.Status.IDLE)
