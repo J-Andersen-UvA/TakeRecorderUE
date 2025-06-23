@@ -45,6 +45,10 @@ class KeepRunningTakeRecorder:
         self.actorName = params["actor_name"]
         self.actorNameShorthand = params["actor_name_shorthand"]
         self.replayActor = editorFuncs.get_actor_by_name(params["replay_actor_name"])
+        if self.replayActor is None:
+            print(f"[recorder.py] Replay actor '{params['replay_actor_name']}' not found in the level.")
+            popUp.show_popup_message("KeepRunningTakeRecorder", f"[recorder.py] Replay actor '{params['replay_actor_name']}' not found in the level.")
+
         self.slate_post_tick_handle = None
         self.resettingPopUpText = None
         self.resettingPopUpTitle = None
@@ -85,6 +89,10 @@ class KeepRunningTakeRecorder:
         """
         # When resetting, we are waiting for the take recorder to be ready (making it so he has saved the last recording)
         if stateManager.get_recording_status() == stateManagerScript.Status.RESETTING:
+            # don’t go to IDLE until Unreal tells us it’s safe
+            if not self.tk.take_recorder_ready():
+                return
+
             stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             print("[recorder.py] Resetting state to idle.")
             
@@ -111,6 +119,10 @@ class KeepRunningTakeRecorder:
             return
 
         if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
+            # ensure we’ve got the very latest take
+            if not self.tk.take_recorder_ready():
+                return
+
             print("[recorder.py] Replaying last recording...")
             last_anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
 
@@ -144,7 +156,11 @@ class KeepRunningTakeRecorder:
 
         # Exporting needs to be done through the main thread since UE5.5, the subthread communicating with the websocket therefore
         # communicates with this main thread loop
-        if stateManager.get_recording_status() == stateManagerScript.Status.FBX_EXPORT or stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_FBX:
+        if stateManager.get_recording_status() in (stateManagerScript.Status.FBX_EXPORT, stateManagerScript.Status.EXPORT_FBX):
+            # don’t start the export until the panel is ready
+            if not self.tk.take_recorder_ready():
+                return
+
             anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
             stateManager.set_last_location(location)
             if not self.tk.export_animation(location, stateManager.folder, stateManager.get_gloss_name(), actor_name=self.actorNameShorthand):
@@ -154,7 +170,7 @@ class KeepRunningTakeRecorder:
 
         # If the recording status is idle, we check if the gloss name is different from the last one
         if stateManager.get_recording_status() == stateManagerScript.Status.IDLE:
-            if self.tk._sanitize_name(stateManager.get_gloss_name()) != self.tk.get_slate():
+            if stateManager.gloss_name_cleaned != self.tk.get_slate():
                 print(f"[recorder.py] Gloss name changed from {self.tk.get_slate()} to {self.tk._sanitize_name(stateManager.get_gloss_name())}")
                 self.tk.set_slate_name(stateManager.get_gloss_name())
 
