@@ -1,1 +1,6 @@
-params.py
+__pycache__
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+todo.txt
