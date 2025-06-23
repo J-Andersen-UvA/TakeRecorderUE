@@ -156,7 +156,11 @@ class KeepRunningTakeRecorder:
 
         # Exporting needs to be done through the main thread since UE5.5, the subthread communicating with the websocket therefore
         # communicates with this main thread loop
-        if stateManager.get_recording_status() == stateManagerScript.Status.FBX_EXPORT or stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_FBX:
+        if stateManager.get_recording_status() in (stateManagerScript.Status.FBX_EXPORT, stateManagerScript.Status.EXPORT_FBX):
+            # don’t start the export until the panel is ready
+            if not self.tk.take_recorder_ready():
+                return
+
             anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
             stateManager.set_last_location(location)
             if not self.tk.export_animation(location, stateManager.folder, stateManager.get_gloss_name(), actor_name=self.actorNameShorthand):
