@@ -89,6 +89,10 @@ class KeepRunningTakeRecorder:
         """
         # When resetting, we are waiting for the take recorder to be ready (making it so he has saved the last recording)
         if stateManager.get_recording_status() == stateManagerScript.Status.RESETTING:
+            # don’t go to IDLE until Unreal tells us it’s safe
+            if not self.tk.take_recorder_ready():
+                return
+
             stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             print("[recorder.py] Resetting state to idle.")
             
@@ -115,6 +119,10 @@ class KeepRunningTakeRecorder:
             return
 
         if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
+            # ensure we’ve got the very latest take
+            if not self.tk.take_recorder_ready():
+                return
+
             print("[recorder.py] Replaying last recording...")
             last_anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
 
