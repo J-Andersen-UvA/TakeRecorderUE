@@ -48,6 +48,7 @@ class TakeRecorder:
 
     def get_slate(self) -> str:
         """Retrieve the slate information from the take recorder panel."""
+        self.metadata = self.take_recorder_panel.get_take_meta_data()
         return self.metadata.get_slate()
 
     def set_slate_name(self, name : str) -> None:
@@ -57,6 +58,7 @@ class TakeRecorder:
         :param name: The name to set as the slate.
         """
         clean_name = self._sanitize_name(name)
+        self.metadata = self.take_recorder_panel.get_take_meta_data()
         self.metadata.set_slate(clean_name)
 
     def get_sources(self):
