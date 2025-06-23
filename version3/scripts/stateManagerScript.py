@@ -34,6 +34,7 @@ class StateManager:
         if not hasattr(self, 'initialized'):  # Initialize once
             self.recording_status = Status.IDLE  # Default state
             self.gloss_name = None
+            self.gloss_name_cleaned = None
             self.initialized = True
             self.level_sequence_name = None
             self.export_status = Status.IDLE
@@ -70,7 +71,8 @@ class StateManager:
 
     def set_gloss_name(self, gloss_name):
         """Sets the glossName."""
-        self.gloss_name = self._sanitize_name(gloss_name)
+        self.gloss_name = gloss_name
+        self.gloss_name_cleaned = self._sanitize_name(gloss_name)
         return self.gloss_name
 
     def get_gloss_name(self):
