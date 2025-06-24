@@ -1,17 +1,12 @@
 # scripts/utils/ui_utils.py
 
-import os
-import sys
-import unreal
+import os, sys, unreal, uuid
 from typing import Callable
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Make sure "scripts/" (which lives at ProjectDir/scripts) is on sys.path
+# ─── Bootstrap so `import scripts.*` works ────────────────────────────────────
 project_dir = unreal.SystemLibrary.get_project_directory().rstrip(os.sep)
 if project_dir not in sys.path:
     sys.path.insert(0, project_dir)
-    unreal.log(f"[ui_utils] added project directory to sys.path: {project_dir}")
-# ──────────────────────────────────────────────────────────────────────────────
 
 class ButtonRegistry:
     _callbacks = {}
@@ -22,50 +17,72 @@ class ButtonRegistry:
     def execute(cls, button_id: str):
         cb = cls._callbacks.get(button_id)
         if cb:
-            try:
-                cb()
-            except Exception as e:
-                unreal.log_error(f"[ButtonRegistry] Error in '{button_id}': {e}")
+            try: cb()
+            except Exception as e: unreal.log_error(f"[ButtonRegistry] {button_id} error: {e}")
         else:
             unreal.log_error(f"[ButtonRegistry] No callback for '{button_id}'")
 
 class Button:
-    """
-    :param menu_path:    e.g. "LevelEditor.MainMenu.Tools"
-    :param section_name: e.g. "TakeRecorderSection"
-    :param label:        visible text in the menu
-    :param callback:     zero-arg Python callable to run on click
-    :param tooltip:      optional hover text
-    :param button_id:    OPTIONAL explicit internal name; if omitted, it's derived from section+label
-    :param overwrite:    if True, remove any existing entry with the same button_id before adding
-    """
-    def __init__(
-        self,
-        menu_path: str,
-        section_name: str,
-        label: str,
-        callback: Callable,
-        tooltip: str = "",
-        button_id: str = None,
-        overwrite: bool = True
-    ):
-        # 1) Compute a deterministic ID if none provided
-        self.button_id = button_id or f"Btn_{section_name}_{label}".replace(" ", "_")
-        ButtonRegistry.register(self.button_id, callback)
+    def __init__(self,
+                 menu_path: str,
+                 section_name: str,
+                 label: str,
+                 callback: Callable,
+                 tooltip: str = "",
+                 overwrite: bool = False,
+                 tab: bool = False):
+        """
+        :param menu_path:    "LevelEditor.MainMenu" (to create a new tab)
+                             or "LevelEditor.MainMenu.YourTab" (to add under existing)
+        :param section_name: e.g. "ToucanToolsSection"
+        :param label:        visible text (for the tab if tab=True, otherwise for the button)
+        :param callback:     zero-arg Python function (only used if tab=False)
+        :param tooltip:      hover text
+        :param overwrite:    if True, remove any existing button with same ID
+        :param tab:          if True *only* creates the top-level tab, no button entry
+        """
+        menus = unreal.ToolMenus.get()
+        parts = menu_path.split(".")
 
-        # 2) Grab the menu & ensure the section exists
-        tm   = unreal.ToolMenus.get()
-        menu = tm.extend_menu(menu_path)
+        # 1) Handle top-level tab creation
+        if len(parts) == 2:
+            main_menu = menus.extend_menu(menu_path)  # LevelEditor.MainMenu
+            # IMPORTANT: use keyword args in the correct order!
+            sub_menu = main_menu.add_sub_menu(
+                owner=main_menu.get_name(),    # e.g. "LevelEditor.MainMenu"
+                section_name=section_name,          # your section ID in the parent
+                name=label.replace(" ", "_"),  # INTERNAL tab name
+                label=label,                   # VISIBLE tab name
+                tool_tip=tooltip               # hover text
+            )
+            menus.refresh_all_widgets()
+
+            # if user only wanted a tab, stop here:
+            if tab:
+                return
+
+            # otherwise, fall through to create a button _inside_ this submenu
+            menu = sub_menu
+
+        else:
+            # 2) Not a new top-level tab: extend an existing menu
+            menu = menus.extend_menu(menu_path)
+
+        # 3) Make sure our section exists
         menu.add_section(section_name, section_name)
 
-        # 3) If requested, remove any prior entry with the same name
+        # 4) Register callback and determine our button ID
+        self.button_id = f"Btn_{section_name}_{label}".replace(" ", "_")
+        ButtonRegistry.register(self.button_id, callback)
+
+        # 5) Optionally remove an old entry
         if overwrite:
             try:
                 menu.remove_menu_entry(section_name, self.button_id)
             except Exception:
                 pass
 
-        # 4) Build the new entry
+        # 6) Build the button entry
         entry = unreal.ToolMenuEntry(
             name=self.button_id,
             type=unreal.MultiBlockType.MENU_ENTRY
@@ -82,8 +99,6 @@ class Button:
             )
         )
 
-        # 5) Add (or re-add) the entry into our section
+        # 7) Add it under our section and refresh
         menu.add_menu_entry(section_name, entry)
-        tm.refresh_all_widgets()
-
-
+        menus.refresh_all_widgets()
