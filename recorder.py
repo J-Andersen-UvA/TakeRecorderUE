@@ -168,6 +168,7 @@ class KeepRunningTakeRecorder:
 print("[recorder.py] Starting recorder...")
 stateManager = stateManagerScript.StateManager(params.record_path)
 stateManager.set_folder(params.record_path)
+stateManager.set_endpoint_file(params.export_endpoint)
 stateManager.set_recording_status(stateManagerScript.Status.IDLE)
 tk = takeRecorder.TakeRecorder(stateManager)
 

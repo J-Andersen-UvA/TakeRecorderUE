@@ -1,4 +1,3 @@
-import sys
 import json
 import requests
 import websocket
@@ -6,8 +5,7 @@ import time
 import threading
 import ssl
 import scripts.state.stateManagerScript as stateManagerScript
-import scripts.utils.popUp as popUp
-import scripts.utils.editorFuncs as editorFuncs
+from scripts.export.exportAndSend import send_fbx_to_url_async
 
 stateManager = stateManagerScript.StateManager()
 
@@ -82,42 +80,22 @@ class websocketCommunication:
         stateManager.set_recording_status(value)
         return stateManager.get_recording_status()
 
-    def send_fbx_to_url(self, file_path, avatar_name="glassesGuy", endpoint="https://leffe.science.uva.nl:8043/fbx2glb/upload/"):
+    def send_fbx_to_url(self, file_path, avatar_name="glassesGuy", endpoint="https://signcollect.nl/fbx2glb/upload/"):
         """
-        Synchronously send a file and metadata to a URL.
-
-        Parameters:
-        - file_path (str): File path of the file to send.
-        - avatar_name (str): Name of the avatar to send.
-
-        Prints the response from the server after sending the file.
+        Fire-and-forget upload; immediately return to the main thread.
         """
-        print("Sending file...")
-        with open(file_path, "rb") as file:
-            # 'files' contains the file to upload
-            files = {"file": (file_path, file, "multipart/form-data")}
-            
-            # 'data' contains additional form fields
-            data = {"avatarName": avatar_name}
-            
-            # Send the POST request
-            response = requests.post(
-                endpoint,
-                files=files,
-                data=data,
-                verify=False  # Skips SSL verification
-            )
-            
-            # Send the WebSocket message
-            ws_JSON = {
-                "handler": "fbxExportNameConfirmed",
-                "glosName": stateManager.get_gloss_name(),
-                "avatarName": avatar_name
-            }
-            self.ws.send(json.dumps(ws_JSON))
-            
-            # Print the response
-            print(response.text)
+        print("Starting background upload…")
+        # kick off the upload on its own thread
+        send_fbx_to_url_async(file_path, endpoint, avatar_name, stateManager.get_gloss_name())
+
+        # immediately send your WebSocket confirmation
+        ws_JSON = {
+            "handler": "fbxExportNameConfirmed",
+            "glosName": stateManager.get_gloss_name(),
+            "avatarName": avatar_name
+        }
+        self.ws.send(json.dumps(ws_JSON))
+        print("WebSocket confirmation sent; upload continues in background.")
 
     def on_error(self, ws, error):
         print(f"WebSocket error: {error}")
@@ -233,7 +211,6 @@ class websocketCommunication:
                     "avatarName": "_"
                 }
                 self.ws.send(json.dumps(ws_JSON))
-                # popUp.show_popup_message("export", f"No last recording found at {stateManager.last_location}")
             elif (stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_SUCCESS):
                 self.send_fbx_to_url(stateManager.folder + stateManager.get_gloss_name() + ".fbx", avatar_name=self.actorName, endpoint=stateManager.upload_location)
                 print(f"Sending last recording done: {stateManager.get_gloss_name()}\tPath: {stateManager.last_location}")
