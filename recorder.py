@@ -14,11 +14,11 @@ import scripts.export.exportAndSend as exportAndSend
 import scripts.utils.popUp as popUp
 import scripts.communication.callback as callback
 import scripts.utils.editorFuncs as editorFuncs
-import scripts.config.params as paramsmanager
+from scripts.config.params import Config
 import scripts.utils.extraFuncs as extraFuncs
 
 # Set the parameters from the config file
-params = paramsmanager.Params().get()
+params = Config()
 
 class KeepRunningTakeRecorder:
     """
@@ -42,12 +42,12 @@ class KeepRunningTakeRecorder:
     def __init__(self, tk: takeRecorder.TakeRecorder, file):
         print("Initializing KeepRunningTakeRecorder...")
         self.tk = tk
-        self.actorName = params["actor_name"]
-        self.actorNameShorthand = params["actor_name_shorthand"]
-        self.replayActor = editorFuncs.get_actor_by_name(params["replay_actor_name"])
+        self.actorName = params.actor_name
+        self.actorNameShorthand = params.actor_name_shorthand
+        self.replayActor = editorFuncs.get_actor_by_name(params.replay_actor_name)
         if self.replayActor is None:
-            print(f"[recorder.py] Replay actor '{params['replay_actor_name']}' not found in the level.")
-            popUp.show_popup_message("KeepRunningTakeRecorder", f"[recorder.py] Replay actor '{params['replay_actor_name']}' not found in the level.")
+            print(f"[recorder.py] Replay actor '{params.replay_actor_name}' not found in the level.")
+            popUp.show_popup_message("KeepRunningTakeRecorder", f"[recorder.py] Replay actor '{params.replay_actor_name}' not found in the level.")
 
         self.slate_post_tick_handle = None
         self.resettingPopUpText = None
@@ -170,23 +170,23 @@ class KeepRunningTakeRecorder:
 
         # If the recording status is idle, we check if the gloss name is different from the last one
         if stateManager.get_recording_status() == stateManagerScript.Status.IDLE:
-            if stateManager.gloss_name_cleaned != self.tk.get_slate():
+            if stateManager.gloss_name_cleaned != self.tk.get_slate() and stateManager.gloss_name_cleaned not in ["", None]:
                 print(f"[recorder.py] Gloss name changed from {self.tk.get_slate()} to {self.tk._sanitize_name(stateManager.get_gloss_name())}")
                 self.tk.set_slate_name(stateManager.get_gloss_name())
 
         return
 
 print("[recorder.py] Starting recorder...")
-stateManager = stateManagerScript.StateManager(params["output_dir"])
-stateManager.set_folder(params["output_dir"])
+stateManager = stateManagerScript.StateManager(params.record_path)
+stateManager.set_folder(params.record_path)
 stateManager.set_recording_status(stateManagerScript.Status.IDLE)
 tk = takeRecorder.TakeRecorder(stateManager)
 
 ktk = KeepRunningTakeRecorder(tk, "")
 ktk.start()
 
-host = params["websocketServer"]
+host = params.ws_url
 if len(sys.argv) > 1:
     host = sys.argv[1]
-wsCom = wsCommunicationScript.websocketCommunication(host, tk, ktk, params["actor_name"], params["replay_actor_name"])
+wsCom = wsCommunicationScript.websocketCommunication(host, tk, ktk, params.actor_name, params.replay_actor_name)
 # wsCom.keep_running_take_recorder = tk
