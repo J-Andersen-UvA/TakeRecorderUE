@@ -7,6 +7,7 @@ import scripts.state.stateManagerScript as stateManagerScript
 import scripts.utils.popUp as popUp
 import scripts.utils.editorFuncs as editorFuncs
 from scripts.config.params import Config
+from scripts.utils.ui_utils import Button
 
 # Set the parameters from the config file
 params = Config()
@@ -30,9 +31,10 @@ class KeepRunningTakeRecorder:
     - tick(delta_time: float): Perform actions based on the current state.
     """
 
-    def __init__(self, tk: takeRecorder.TakeRecorder, file):
+    def __init__(self, tk: takeRecorder.TakeRecorder, stateManager : stateManagerScript, file):
         print("Initializing KeepRunningTakeRecorder...")
         self.tk = tk
+        self.stateManager = stateManager
         self.actorName = params.actor_name
         self.actorNameShorthand = params.actor_name_shorthand
         self.replayActor = editorFuncs.get_actor_by_name(params.replay_actor_name)
@@ -79,12 +81,12 @@ class KeepRunningTakeRecorder:
         If the recording state is "replay_record", replay the last recording.
         """
         # When resetting, we are waiting for the take recorder to be ready (making it so he has saved the last recording)
-        if stateManager.get_recording_status() == stateManagerScript.Status.RESETTING:
+        if self.stateManager.get_recording_status() == stateManagerScript.Status.RESETTING:
             # don’t go to IDLE until Unreal tells us it’s safe
             if not self.tk.take_recorder_ready():
                 return
 
-            stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+            self.stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             print("[recorder.py] Resetting state to idle.")
             
             if self.resettingPopUpText:
@@ -93,23 +95,23 @@ class KeepRunningTakeRecorder:
                 self.resettingPopUpTitle = None
             return
 
-        if stateManager.get_recording_status() == stateManagerScript.Status.DIE:
+        if self.stateManager.get_recording_status() == stateManagerScript.Status.DIE:
             self.stop()  # Unregister the callback when stopping
             return
 
-        if stateManager.get_recording_status() == stateManagerScript.Status.START:
-            self.tk.set_slate_name(stateManager.get_gloss_name())
-            print(f"[recorder.py] Starting recording with slate name: {stateManager.get_gloss_name()}")
+        if self.stateManager.get_recording_status() == stateManagerScript.Status.START:
+            self.tk.set_slate_name(self.stateManager.get_gloss_name())
+            print(f"[recorder.py] Starting recording with slate name: {self.stateManager.get_gloss_name()}")
             self.tk.start_recording()
-            stateManager.set_recording_status(stateManagerScript.Status.RECORDING)
+            self.stateManager.set_recording_status(stateManagerScript.Status.RECORDING)
             return
 
-        if stateManager.get_recording_status() == stateManagerScript.Status.STOP:
-            stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
+        if self.stateManager.get_recording_status() == stateManagerScript.Status.STOP:
+            self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
             self.tk.stop_recording()
             return
 
-        if stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
+        if self.stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
             # ensure we’ve got the very latest take
             if not self.tk.take_recorder_ready():
                 return
@@ -117,7 +119,7 @@ class KeepRunningTakeRecorder:
             print("[recorder.py] Replaying last recording...")
             last_anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
 
-            if last_anim is None or location == stateManager.get_last_location():
+            if last_anim is None or location == self.stateManager.get_last_location():
                 for _ in range(5):
                     last_anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
                     if last_anim is not None:
@@ -125,11 +127,11 @@ class KeepRunningTakeRecorder:
 
                 self.resettingPopUpText = "[recorder.py] No last recording found. Set state to idle."
                 self.resettingPopUpTitle = "replay"
-                if location == stateManager.get_last_location():
+                if location == self.stateManager.get_last_location():
                     self.resettingPopUpText = "[recorder.py] Replaying the same recording. Set state to idle. Please re-record if you want the export to work."
                     self.resettingPopUpTitle = "replay"
 
-                stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
+                self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
                 return
 
             print(f"[recorder.py] Replaying animation at: {location}")
@@ -140,44 +142,66 @@ class KeepRunningTakeRecorder:
 
             self.resettingPopUpText = None
             self.resettingPopUpTitle = None
-            stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
+            self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
             return
 
         # Exporting needs to be done through the main thread since UE5.5, the subthread communicating with the websocket therefore
         # communicates with this main thread loop
-        if stateManager.get_recording_status() in (stateManagerScript.Status.FBX_EXPORT, stateManagerScript.Status.EXPORT_FBX):
+        if self.stateManager.get_recording_status() in (stateManagerScript.Status.FBX_EXPORT, stateManagerScript.Status.EXPORT_FBX):
             # don’t start the export until the panel is ready
             if not self.tk.take_recorder_ready():
                 return
 
             anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
-            stateManager.set_last_location(location)
-            if not self.tk.export_animation(location, stateManager.folder, stateManager.get_gloss_name(), actor_name=self.actorNameShorthand):
-                stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
+            self.stateManager.set_last_location(location)
+            if not self.tk.export_animation(location, self.stateManager.folder, self.stateManager.get_gloss_name(), actor_name=self.actorNameShorthand):
+                self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
             else:
-                stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
+                self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
 
         # If the recording status is idle, we check if the gloss name is different from the last one
-        if stateManager.get_recording_status() == stateManagerScript.Status.IDLE:
-            if stateManager.gloss_name_cleaned != self.tk.get_slate() and stateManager.gloss_name_cleaned not in ["", None]:
-                print(f"[recorder.py] Gloss name changed from {self.tk.get_slate()} to {self.tk._sanitize_name(stateManager.get_gloss_name())}")
-                self.tk.set_slate_name(stateManager.get_gloss_name())
+        if self.stateManager.get_recording_status() == stateManagerScript.Status.IDLE:
+            if self.stateManager.gloss_name_cleaned != self.tk.get_slate() and self.stateManager.gloss_name_cleaned not in ["", None]:
+                print(f"[recorder.py] Gloss name changed from {self.tk.get_slate()} to {self.tk._sanitize_name(self.stateManager.get_gloss_name())}")
+                self.tk.set_slate_name(self.stateManager.get_gloss_name())
 
         return
 
-print("[recorder.py] Starting recorder...")
-stateManager = stateManagerScript.StateManager(params.record_path)
-stateManager.set_folder(params.record_path)
-stateManager.set_endpoint_file(params.export_endpoint)
-stateManager.set_recording_status(stateManagerScript.Status.IDLE)
-tk = takeRecorder.TakeRecorder(stateManager)
-tk.add_actor_to_take_recorder(editorFuncs.get_actor_by_shorthand(params.actor_name_shorthand))
+def main():
+    print("[recorder`.py] Starting recorder...")
+    stateManager = stateManagerScript.StateManager(params.record_path)
+    stateManager.set_folder(params.record_path)
+    stateManager.set_endpoint_file(params.export_endpoint)
+    stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+    tk = takeRecorder.TakeRecorder(stateManager)
+    tk.add_actor_to_take_recorder(editorFuncs.get_actor_by_shorthand(params.actor_name_shorthand))
 
-ktk = KeepRunningTakeRecorder(tk, "")
-ktk.start()
+    ktk = KeepRunningTakeRecorder(tk, stateManager, "")
+    ktk.start()
 
-host = params.ws_url
-if len(sys.argv) > 1:
-    host = sys.argv[1]
-wsCom = wsCommunicationScript.websocketCommunication(host, tk, ktk, params.actor_name, params.replay_actor_name)
-# wsCom.keep_running_take_recorder = tk
+    host = params.ws_url
+    if len(sys.argv) > 1:
+        host = sys.argv[1]
+    wsCom = wsCommunicationScript.websocketCommunication(host, tk, ktk, params.actor_name, params.replay_actor_name)
+    # wsCom.keep_running_take_recorder = tk
+
+# 1) Create a brand-new tab called “ToucanTools”
+Button(
+    menu_path="LevelEditor.MainMenu",
+    section_name="ToucanToolsSection",
+    label="ToucanTools",
+    callback=lambda: None,
+    tooltip="I asked my bird if it could multitask. It said, “Toucan!”",
+    overwrite=True,
+    tab=True  # <== this makes it a tab, not a button
+)
+
+# 2) Now add a real button under that tab
+Button(
+    menu_path="LevelEditor.MainMenu.ToucanTools",  # <== must match the internal name you used above
+    section_name="TakeRecorderSection",
+    label="Run Take Recorder",
+    callback=main,
+    tooltip="Runs the Take Recorder to record animations.",
+    overwrite=True
+)
