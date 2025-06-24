@@ -1,6 +1,6 @@
-import scripts.takeRecorder as takeRecorder
+import scripts.recording.takeRecorder as takeRecorder
 import unreal
-import scripts.editorFuncs as editorFuncs
+import scripts.utils.editorFuncs as editorFuncs
 # import assets_tools
 # import assets
 from typing import Dict, Any

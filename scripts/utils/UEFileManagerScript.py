@@ -1,6 +1,6 @@
 import unreal
 import os
-import scripts.popUp as popUp
+import scripts.utils.popUp as popUp
 
 #########################################################################################################
 #                                            UEFileManager                                              #

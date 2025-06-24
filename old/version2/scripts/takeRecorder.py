@@ -2,8 +2,8 @@ import unreal
 import scripts.UEFileManagerScript as UEFileManager
 import scripts.popUp as popUp
 import os
-import scripts.stateManagerScript as stateManagerScript
-import scripts.exportAndSend as exportAndSend
+import scripts.state.stateManagerScript as stateManagerScript
+import scripts.export.exportAndSend as exportAndSend
 
 class TakeRecorder:
     """

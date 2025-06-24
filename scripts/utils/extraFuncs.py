@@ -1,5 +1,5 @@
 import unreal
-import scripts.editorFuncs as editorFuncs
+import scripts.utils.editorFuncs as editorFuncs
 
 def torchToggle(actor):
     """Toggles the torch that the actor is holding."""

@@ -5,9 +5,9 @@ import websocket
 import time
 import threading
 import ssl
-import scripts.stateManagerScript as stateManagerScript
-import scripts.popUp as popUp
-import scripts.editorFuncs as editorFuncs
+import scripts.state.stateManagerScript as stateManagerScript
+import scripts.utils.popUp as popUp
+import scripts.utils.editorFuncs as editorFuncs
 
 stateManager = stateManagerScript.StateManager()
 

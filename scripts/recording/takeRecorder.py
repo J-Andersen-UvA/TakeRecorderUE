@@ -1,9 +1,8 @@
 import unreal
-import scripts.UEFileManagerScript as UEFileManager
-import scripts.popUp as popUp
-import os
-import scripts.stateManagerScript as stateManagerScript
-import scripts.exportAndSend as exportAndSend
+import scripts.utils.UEFileManagerScript as UEFileManager
+import scripts.utils.popUp as popUp
+import scripts.state.stateManagerScript as stateManagerScript
+import scripts.export.exportAndSend as exportAndSend
 import re
 
 class TakeRecorder:
@@ -42,6 +41,9 @@ class TakeRecorder:
 
     @staticmethod
     def _sanitize_name(name: str, replacement: str = "_") -> str:
+        if name is None:
+            return ""
+
         # any character _not_ in A–Z a–z 0–9 space _ or -
         _SANITIZE_RE = re.compile(r'[^0-9A-Za-z _-]')
         return _SANITIZE_RE.sub(replacement, name)
