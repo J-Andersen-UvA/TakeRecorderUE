@@ -1,7 +1,6 @@
 import unreal
 import scripts.utils.UEFileManagerScript as UEFileManager
 import scripts.utils.popUp as popUp
-import os
 import scripts.state.stateManagerScript as stateManagerScript
 import scripts.export.exportAndSend as exportAndSend
 import re

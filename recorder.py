@@ -1,21 +1,12 @@
 import unreal
-import json
 import sys
-import os
-import subprocess
-import yaml
 
-import scripts.utils.skeletalMeshNameFetcher as skeletalMeshNameFetcher
 import scripts.recording.takeRecorder as takeRecorder
-import scripts.utils.levelSequence as levelSequence
 import scripts.communication.wsCommunicationScript as wsCommunicationScript
 import scripts.state.stateManagerScript as stateManagerScript
-import scripts.export.exportAndSend as exportAndSend
 import scripts.utils.popUp as popUp
-import scripts.communication.callback as callback
 import scripts.utils.editorFuncs as editorFuncs
 from scripts.config.params import Config
-import scripts.utils.extraFuncs as extraFuncs
 
 # Set the parameters from the config file
 params = Config()
@@ -132,7 +123,6 @@ class KeepRunningTakeRecorder:
                     if last_anim is not None:
                         break
 
-                # stateManager.set_recording_status(stateManagerScript.Status.IDLE)
                 self.resettingPopUpText = "[recorder.py] No last recording found. Set state to idle."
                 self.resettingPopUpTitle = "replay"
                 if location == stateManager.get_last_location():
@@ -151,7 +141,6 @@ class KeepRunningTakeRecorder:
             self.resettingPopUpText = None
             self.resettingPopUpTitle = None
             stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
-            # stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             return
 
         # Exporting needs to be done through the main thread since UE5.5, the subthread communicating with the websocket therefore
