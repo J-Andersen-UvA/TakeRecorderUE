@@ -4,7 +4,7 @@ import scripts.utils.editorFuncs as editorFuncs
 # import assets_tools
 # import assets
 from typing import Dict, Any
-import scripts.popUp as popUp
+import scripts.utils.popUp as popUp
 
 # tk = takeRecorder.TakeRecorder()
 
@@ -67,3 +67,16 @@ take_recorder_panel = (
 loca_1 = "/Game/Cinematics/Takes/2025-02-11/Scene_1_222_Subscenes/Animation/GlassesGuyRecord_Scene_1_222"
 _, loca_2 = fetch_last_animation(take_recorder_panel)
 popUp.show_popup_message("recordings equal?", f"{loca_1} == {loca_2}\n{loca_1 == loca_2}")
+
+def print_all_actors():
+    """
+    Fetch an actor by name.
+
+    Params:
+    - name (str): The name of the actor to fetch.
+    """
+    actors = unreal.EditorLevelLibrary.get_all_level_actors()
+    for actor in actors:
+        print(f"Actor found: {actor.get_name()}")
+
+print_all_actors()

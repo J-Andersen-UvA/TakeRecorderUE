@@ -171,6 +171,7 @@ stateManager.set_folder(params.record_path)
 stateManager.set_endpoint_file(params.export_endpoint)
 stateManager.set_recording_status(stateManagerScript.Status.IDLE)
 tk = takeRecorder.TakeRecorder(stateManager)
+tk.add_actor_to_take_recorder(editorFuncs.get_actor_by_shorthand(params.actor_name_shorthand))
 
 ktk = KeepRunningTakeRecorder(tk, "")
 ktk.start()

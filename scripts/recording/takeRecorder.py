@@ -209,3 +209,20 @@ class TakeRecorder:
 
         return True
 
+    def add_actor_to_take_recorder(self, actor: unreal.Actor):
+        """
+        Adds an actor to the Take Recorder as a source.
+        """
+        if not actor:
+            unreal.log_error("No actor provided.")
+            return
+
+        # Grab source container
+        sources = self.take_recorder_panel.get_sources()
+
+        # Use the Actor-source helper
+        new_source = unreal.TakeRecorderActorSource.add_source_for_actor(actor, sources)
+        if new_source:
+            unreal.log(f"Added '{actor.get_name()}' to Take Recorder sources.")
+        else:
+            unreal.log_error(f"Failed to add '{actor.get_name()}' to Take Recorder sources.")
