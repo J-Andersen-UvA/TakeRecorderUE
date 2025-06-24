@@ -106,13 +106,14 @@ def bake_active_livelink_into_actor_anim_bp(
     cdo = unreal.get_default_object(bp_class)
 
     # 7) Verify the CDO has the variable and set it
-    if not hasattr(cdo, variable_name):
-        unreal.log_error(f"[LiveLinkTools] CDO has no attribute '{variable_name}'")
+    try:
+        cdo.set_editor_property(variable_name, subject)
+    except Exception as e:
+        unreal.log_error(f"[LiveLinkTools] Failed to set '{variable_name}' on {bp_name} : {e}")
         return False
-    cdo.set_editor_property(variable_name, subject)
 
     # 8) Compile & save the Blueprint asset
-    unreal.KismetEditorUtilities.compile_blueprint(bp_asset)
+    unreal.BlueprintEditorLibrary.compile_blueprint(bp_asset)
     unreal.EditorAssetLibrary.save_asset(bp_asset_path)
     unreal.log(f"[LiveLinkTools] 🎉 Set default '{variable_name}' = '{subject}' on '{bp_name}'")
 

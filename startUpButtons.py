@@ -28,9 +28,9 @@ Button(
 
 Button(
     menu_path="LevelEditor.MainMenu.ToucanTools",
-    section_name="LiveLinkSection",
+    section_name="LiveLink",
     label="Bake LiveLink to AnimBP",
-    callback=lambda: editorFuncs.bake_active_livelink_into_actor_anim_bp(actor, variable_name="Vicon Subject"),
+    callback=lambda: editorFuncs.bake_active_livelink_into_actor_anim_bp(actor, variable_name="ViconSubject"),
     tooltip="Set the RecordingActor’s AnimBP to use the current LiveLink source by default",
     overwrite=True
 )
