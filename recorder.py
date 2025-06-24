@@ -5,17 +5,17 @@ import os
 import subprocess
 import yaml
 
-import scripts.skeletalMeshNameFetcher as skeletalMeshNameFetcher
-import scripts.takeRecorder as takeRecorder
-import scripts.levelSequence as levelSequence
-import scripts.wsCommunicationScript as wsCommunicationScript
-import scripts.stateManagerScript as stateManagerScript
-import scripts.exportAndSend as exportAndSend
-import scripts.popUp as popUp
-import scripts.callback as callback
-import scripts.editorFuncs as editorFuncs
-import params as paramsmanager
-import scripts.extraFuncs as extraFuncs
+import scripts.utils.skeletalMeshNameFetcher as skeletalMeshNameFetcher
+import scripts.recording.takeRecorder as takeRecorder
+import scripts.utils.levelSequence as levelSequence
+import scripts.communication.wsCommunicationScript as wsCommunicationScript
+import scripts.state.stateManagerScript as stateManagerScript
+import scripts.export.exportAndSend as exportAndSend
+import scripts.utils.popUp as popUp
+import scripts.communication.callback as callback
+import scripts.utils.editorFuncs as editorFuncs
+import scripts.config.params as paramsmanager
+import scripts.utils.extraFuncs as extraFuncs
 
 # Set the parameters from the config file
 params = paramsmanager.Params().get()

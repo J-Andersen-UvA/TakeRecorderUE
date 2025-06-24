@@ -1,5 +1,5 @@
 import unreal
-import scripts.levelSequence as levelSequence
+import scripts.utils.levelSequence as levelSequence
 import asyncio
 import httpx
 

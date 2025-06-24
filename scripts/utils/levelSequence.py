@@ -1,5 +1,5 @@
 import unreal
-import scripts.popUp as popUp
+import scripts.utils.popUp as popUp
 
 class SequencerTools:
     _instance = None  # Class-level variable to store the singleton instance
