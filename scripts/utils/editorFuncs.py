@@ -115,6 +115,6 @@ def bake_active_livelink_into_actor_anim_bp(
     # 8) Compile & save the Blueprint asset
     unreal.BlueprintEditorLibrary.compile_blueprint(bp_asset)
     unreal.EditorAssetLibrary.save_asset(bp_asset_path)
-    unreal.log(f"[LiveLinkTools] 🎉 Set default '{variable_name}' = '{subject}' on '{bp_name}'")
+    unreal.log(f"[LiveLinkTools] Set default '{variable_name}' = '{subject}' on '{bp_name}'")
 
     return True

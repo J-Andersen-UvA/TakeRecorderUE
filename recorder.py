@@ -9,6 +9,8 @@ import scripts.utils.editorFuncs as editorFuncs
 from scripts.config.params import Config
 from scripts.utils.ui_utils import Button
 
+_take_recorder_started = False
+
 # Set the parameters from the config file
 params = Config()
 
@@ -168,6 +170,14 @@ class KeepRunningTakeRecorder:
         return
 
 def main():
+    global _take_recorder_started
+
+    if _take_recorder_started:
+        popUp.show_popup_message("Take Recorder", "Take Recorder is already running.\nPlease restart Unreal Engine to reset it.")
+        return
+
+    _take_recorder_started = True
+
     print("[recorder`.py] Starting recorder...")
     stateManager = stateManagerScript.StateManager(params.record_path)
     stateManager.set_folder(params.record_path)
