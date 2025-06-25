@@ -36,24 +36,25 @@ def get_actor_by_shorthand(short_name):
     print(f"No actor found with shorthand '{short_name}'")
     return None
     
-def load_and_apply_livelink_preset(path: str = '/Game/viconPC.viconPC') -> bool:
-    """
-    Load a Live Link Preset asset at the given content path
-    (e.g. '/Game/LiveLinkPresets/MyDefaultPreset.MyDefaultPreset')
-    and apply it (removing any previous sources/subjects).
-    """
+def load_and_apply_livelink_preset(path: str = "/Game/viconPC.viconPC") -> bool:
     preset = unreal.load_asset(path)
     if not preset:
-        unreal.log_error(f"[LiveLink] Couldn’t find preset asset at '{path}'")
+        unreal.log_error(f"[LiveLink] Couldn’t find preset at '{path}'")
         return False
 
-    # apply_to_client() replaces all sources and subjects with those in the preset
-    success = preset.apply_to_client()
-    if success:
-        unreal.log(f"[LiveLink] Applied Live Link preset: {path}")
-    else:
-        unreal.log_error(f"[LiveLink] Failed to apply preset: {path}")
-    return success
+    # 1) Try to apply; will fail if sources already exist
+    if not preset.apply_to_client():
+        unreal.log_warning("[LiveLink] First apply failed—clearing existing preset entries and retrying…")
+        # 2) On failure, call the “recreate” variant to force-overwrite
+        if preset.add_to_client(recreate_presets=True):
+            unreal.log("[LiveLink] Succeeded on retry with recreate_presets=True")
+            return True
+        else:
+            unreal.log_error("[LiveLink] Still failed to apply preset after retry")
+            return False
+
+    unreal.log(f"[LiveLink] Applied preset: {path}")
+    return True
 
 def bake_active_livelink_into_actor_anim_bp(
     actor: unreal.Actor,
