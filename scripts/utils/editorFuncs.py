@@ -56,66 +56,89 @@ def load_and_apply_livelink_preset(path: str = "/Game/viconPC.viconPC") -> bool:
     unreal.log(f"[LiveLink] Applied preset: {path}")
     return True
 
-def bake_active_livelink_into_actor_anim_bp(
-    actor: unreal.Actor,
-    variable_name: str = "LiveLinkSubjectName"
-) -> bool:
-    """
-    Finds the given Actor in the level, locates its Anim BP, sets that BP’s
-    default `variable_name` on the Class Default Object to the first enabled
-    LiveLink subject, then compiles & saves the Blueprint asset.
-
-    Returns True on success, False on any error.
-    """
-    # 1) Get the SkeletalMeshComponent
-    skel_comp = actor.get_component_by_class(unreal.SkeletalMeshComponent)
-    if not skel_comp:
-        unreal.log_error(f"[LiveLinkTools] No SkeletalMeshComponent on '{actor.get_name()}'")
-        return False
-
-    # 2) Read the Anim BP class
-    anim_class = skel_comp.get_editor_property("anim_class")
-    if not anim_class:
-        unreal.log_error(f"[LiveLinkTools] '{actor.get_name()}' has no Anim BP assigned")
-        return False
-
-    # 3) Derive the Blueprint asset path (strip "_C")
-    full_path = anim_class.get_path_name()                  # "/Game/Path/MyBP.MyBP_C"
-    base_path, suffix = full_path.rsplit(".", 1)
-    bp_name = suffix[:-2] if suffix.endswith("_C") else suffix
-    bp_asset_path = f"{base_path}.{bp_name}"                # "/Game/Path/MyBP.MyBP"
-
-    # 4) Load the Blueprint asset
-    bp_asset = unreal.load_asset(bp_asset_path)
-    if not bp_asset or not isinstance(bp_asset, unreal.Blueprint):
-        unreal.log_error(f"[LiveLinkTools] Could not load Blueprint asset '{bp_asset_path}'")
-        return False
-
-    # 5) Get the first enabled LiveLink subject
-    subjects = unreal.LiveLinkBlueprintLibrary.get_live_link_enabled_subject_names(False)
-    if not subjects:
-        unreal.log_warning("[LiveLinkTools] No enabled LiveLink subjects")
-        return False
-    subject = subjects[0]
-
-    # 6) Load the generated class and its CDO
-    gen_class_path = f"{bp_asset_path}_C"
-    bp_class = unreal.load_object(None, gen_class_path)
-    if not bp_class:
-        unreal.log_error(f"[LiveLinkTools] Could not load generated class '{gen_class_path}'")
-        return False
-    cdo = unreal.get_default_object(bp_class)
-
-    # 7) Verify the CDO has the variable and set it
+def bake_active_livelink_into_actor_anim_bp(actor: unreal.Actor, source_var_map : dict) -> bool:
     try:
-        cdo.set_editor_property(variable_name, subject)
+        skel = _find_skel_comp(actor)
+        bp_asset, cdo = _load_anim_bp_and_cdo(skel)
+        subjects = _gather_live_link_subjects()
+        if not subjects:
+            unreal.log_warning("No enabled LiveLink subjects")
+            return False
+
+        assignments = _detect_sources(subjects, source_var_map)
+        if not assignments:
+            unreal.log_error("Found LiveLink sources, but none matched your SOURCE_VAR_MAP")
+            return False
+
+        # TODO: there is no has_any_property() in CDO, so this is commented out. For now lets pray
+        # verify all your expected variables exist on the CDO
+        # for var in assignments:
+        #     if not cdo.has_any_property(var):
+        #         raise RuntimeError(f"Blueprint has no variable '{var}'")
+
+        # now set them
+        for var, sub_name in assignments.items():
+            print(f"Binding {var} to subject '{sub_name}'")
+            cdo.set_editor_property(var, sub_name)
+
+        # compile & save
+        unreal.BlueprintEditorLibrary.compile_blueprint(bp_asset)
+        unreal.EditorAssetLibrary.save_asset(bp_asset.get_path_name())
+        unreal.log("[LiveLinkTools] Successfully bound subjects: " + str(assignments))
+        return True
+
     except Exception as e:
-        unreal.log_error(f"[LiveLinkTools] Failed to set '{variable_name}' on {bp_name} : {e}")
+        unreal.log_error(f"[LiveLinkTools] {e}")
         return False
 
-    # 8) Compile & save the Blueprint asset
-    unreal.BlueprintEditorLibrary.compile_blueprint(bp_asset)
-    unreal.EditorAssetLibrary.save_asset(bp_asset_path)
-    unreal.log(f"[LiveLinkTools] Set default '{variable_name}' = '{subject}' on '{bp_name}'")
+def _find_skel_comp(actor):
+    comp = actor.get_component_by_class(unreal.SkeletalMeshComponent)
+    if not comp:
+        raise RuntimeError(f"No SkeletalMeshComponent on {actor.get_name()}")
+    return comp
 
-    return True
+def _load_anim_bp_and_cdo(skel_comp):
+    anim_cls = skel_comp.get_editor_property("anim_class")
+    full_path = anim_cls.get_path_name() if anim_cls else None
+    base_path, suffix = full_path.rsplit(".", 1) if full_path else (None, None)
+    bp_name = suffix[:-2] if suffix.endswith("_C") else suffix
+    bp_asset_path = base_path + "." + bp_name
+    bp_asset = unreal.load_asset(bp_asset_path)
+    gen_class_path = bp_asset_path + "_C"
+    bp_class = unreal.load_object(None, gen_class_path)
+    cdo = unreal.get_default_object(bp_class)
+    print(f"Loaded AnimBP: {bp_asset_path}, CDO: {cdo}")
+    return bp_asset, cdo
+
+def _gather_live_link_subjects():
+    return unreal.LiveLinkBlueprintLibrary.get_live_link_subjects(
+        include_disabled_subject=False,
+        include_virtual_subject=False
+    )
+
+def _detect_sources(subject_keys, source_var_map):
+    """
+    Returns a dict { BlueprintVarName: subject_name } 
+    based on SOURCE_VAR_MAP.
+    """
+    result = {}
+    for key in subject_keys:
+        src_txt = unreal.LiveLinkBlueprintLibrary.get_source_type_from_guid(key.source)
+        src_txt = str(src_txt)
+
+        for predicate, var_name in source_var_map.items():
+            if predicate(src_txt):
+                print(f"Matched source '{src_txt}' to variable '{var_name}'")
+                result[var_name] = key.subject_name
+                break
+    return result
+
+# # example usage bake active_livelink_into_actor_anim_bp 
+# actor = get_actor_by_shorthand("GlassesGuyRecord")
+
+# SOURCE_VAR_MAP = {
+#     lambda src_txt: "Vicon" in src_txt:        "ViconSubject",
+#     lambda src_txt: "ARKit" in src_txt:        "phone1_SubjectLLF",
+# }
+
+# bake_active_livelink_into_actor_anim_bp(actor, SOURCE_VAR_MAP)
