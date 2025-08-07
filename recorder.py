@@ -50,6 +50,7 @@ class KeepRunningTakeRecorder:
         self.resettingPopUpTitle = None
 
         self.CSVWriter = CSVWriter.LiveLinkFaceCSVWriterComponent(stateManager)
+        # self.CSVWriter.check_cur_subject_available()
 
     def start(self) -> None:
         """
@@ -120,6 +121,7 @@ class KeepRunningTakeRecorder:
             if self.CSVWriter:
                 self.CSVWriter.stop_recording()
                 self.CSVWriter.export_file()
+                self.CSVWriter.check_last_file()
             return
 
         if self.stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:

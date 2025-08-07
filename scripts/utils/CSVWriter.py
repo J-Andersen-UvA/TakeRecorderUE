@@ -2,6 +2,8 @@ import unreal
 import scripts.utils.editorFuncs as editorFuncs
 from scripts.config.params import Config
 import scripts.state.stateManagerScript as stateManagerScript
+import scripts.utils.popUp as popUp
+
 params = Config()
 
 class LiveLinkFaceCSVWriterComponent:
@@ -14,14 +16,17 @@ class LiveLinkFaceCSVWriterComponent:
         # Find the Actor in your level that has the CSV‐writer component
         my_actor = editorFuncs.get_actor_by_name(params.actor_name)
         if not my_actor:
-            unreal.log_error("Actor not found!")
+            unreal.log_error("[CSVWriter] Actor not found!")
             raise RuntimeError
 
         self.CSVWriterComp = my_actor.get_component_by_class(unreal.LiveLinkFaceCSVWriterComponent)
 
         self.CSVWriterComp.set_subject_name(unreal.Name(subj_name))
-        self.CSVWriterComp.set_filename("MyCaptureData")
+        self.subj_name = subj_name
         self.set_save_folder(statemanager.folder)
+        self.CSVWriterComp.set_filename("MyCaptureData")
+
+        self.last_file_path = None
     
     def start_recording(self):
         success = self.CSVWriterComp.start_recording()
@@ -31,12 +36,8 @@ class LiveLinkFaceCSVWriterComponent:
             unreal.log_error("[CSVWriter] Failed to start recording")
 
     def stop_recording(self):
-        success = self.CSVWriterComp.stop_recording()
-        if success:
-            unreal.log("[CSVWriter] Recording stopped")
-        else:
-            unreal.log_error("[CSVWriter] Failed to stop recording")
-    
+        self.CSVWriterComp.stop_recording()
+
     def export_file(self):
         success = self.CSVWriterComp.export_file()
         if success:
@@ -53,4 +54,48 @@ class LiveLinkFaceCSVWriterComponent:
     def set_filename(self, filename: str):
         self.CSVWriterComp.set_filename(filename)
         unreal.log(f"[CSVWriter] Filename set to: {filename}")
+        self.last_file_path = f"{self.CSVWriterComp.get_save_folder()}/{filename}.csv"
         return filename
+    
+    def check_last_file(self):
+        """
+        Check if the last exported file exists and return its path.
+        """
+        if not self.last_file_path:
+            popUp.show_popup_message("[CSVWriter] Error", "No last_file_path set in CSVWriter.")
+            return None
+        
+        return self.check_file_minimum_rows(self.last_file_path)
+        
+    def check_file_minimum_rows(self, file_path, min_rows: int = 50):
+        """
+        Check if the file CSV file has at least `min_rows` rows.
+        """
+        if not file_path:
+            unreal.log_error("[CSVWriter] No file path set. Please export a file first.")
+            return False
+        
+        try:
+            with open(file_path, 'r') as f:
+                lines = f.readlines()
+                if len(lines) < min_rows:
+                    popUp.show_popup_message("[CSVWriter] Warning", f"File '{file_path}' has only {len(lines)} rows. Check the iPhone.")
+                    return False
+                else:
+                    unreal.log(f"[CSVWriter] File '{file_path}' has sufficient rows: {len(lines)}")
+                    return True
+        except Exception as e:
+            unreal.log_error(f"[CSVWriter] Error checking file: {e}")
+            return False
+
+    # Doesnt work currently, needs to be fixed
+    # def check_cur_subject_available(self):
+    #     """
+    #     Check if the subject is available in the Live Link system.
+    #     """
+    #     if self.CSVWriterComp.is_subject_available():
+    #         unreal.log(f"[CSVWriter] Subject '{self.subj_name}' is available.")
+    #         return True
+
+    #     popUp.show_popup_message("[CSVWriter] Error", f"Subject '{self.subj_name}' is not available. Make sure the iPhone is connected and the Live Link Face app is running. Restart UE.")
+    #     return False
