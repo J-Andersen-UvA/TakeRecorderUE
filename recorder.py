@@ -6,6 +6,7 @@ import scripts.communication.wsCommunicationScript as wsCommunicationScript
 import scripts.state.stateManagerScript as stateManagerScript
 import scripts.utils.popUp as popUp
 import scripts.utils.editorFuncs as editorFuncs
+import scripts.utils.CSVWriter as CSVWriter
 from scripts.config.params import Config
 from scripts.utils.ui_utils import Button
 
@@ -47,6 +48,8 @@ class KeepRunningTakeRecorder:
         self.slate_post_tick_handle = None
         self.resettingPopUpText = None
         self.resettingPopUpTitle = None
+
+        self.CSVWriter = CSVWriter.LiveLinkFaceCSVWriterComponent(stateManager)
 
     def start(self) -> None:
         """
@@ -105,12 +108,18 @@ class KeepRunningTakeRecorder:
             self.tk.set_slate_name(self.stateManager.get_gloss_name())
             print(f"[recorder.py] Starting recording with slate name: {self.stateManager.get_gloss_name()}")
             self.tk.start_recording()
+            if self.CSVWriter:
+                self.CSVWriter.set_filename(self.stateManager.get_gloss_name())
+                self.CSVWriter.start_recording()
             self.stateManager.set_recording_status(stateManagerScript.Status.RECORDING)
             return
 
         if self.stateManager.get_recording_status() == stateManagerScript.Status.STOP:
             self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
             self.tk.stop_recording()
+            if self.CSVWriter:
+                self.CSVWriter.stop_recording()
+                self.CSVWriter.export_file()
             return
 
         if self.stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
@@ -156,7 +165,7 @@ class KeepRunningTakeRecorder:
 
             anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
             self.stateManager.set_last_location(location)
-            if not self.tk.export_animation(location, self.stateManager.folder, self.stateManager.get_gloss_name(), actor_name=self.actorNameShorthand):
+            if not self.tk.export_animation(location, self.stateManager.folder, self.stateManager.get_last_gloss_name(), actor_name=self.actorNameShorthand):
                 self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
             else:
                 self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)

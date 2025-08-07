@@ -40,6 +40,7 @@ class StateManager:
             self.export_status = Status.IDLE
             self.last_location = None
             self.upload_location = None
+            self.previous_gloss_name = None
 
             self.folder = None
             if args:
@@ -71,6 +72,7 @@ class StateManager:
 
     def set_gloss_name(self, gloss_name):
         """Sets the glossName."""
+        self.previous_gloss_name = self.gloss_name
         self.gloss_name = gloss_name
         self.gloss_name_cleaned = self._sanitize_name(gloss_name)
         return self.gloss_name
@@ -78,6 +80,10 @@ class StateManager:
     def get_gloss_name(self):
         """Returns the current glossName."""
         return self.gloss_name
+    
+    def get_last_gloss_name(self):
+        """Returns the last glossName."""
+        return self.previous_gloss_name
     
     def set_last_location(self, location):
         print(f"Setting last location: {location}")

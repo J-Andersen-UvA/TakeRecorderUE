@@ -193,8 +193,9 @@ class TakeRecorder:
         return False
 
     def export_animation(self, location, folder, gloss_name, actor_name="GlassesGuyRecord"):
-        glosName = self.stateManager.get_gloss_name()
-        print(f"Exporting last recording: {glosName}...")
+        if not gloss_name:
+            gloss_name = self.stateManager.get_gloss_name()
+        print(f"Exporting last recording: {gloss_name}...")
 
         last_anim, location = self.fetch_last_animation(actor_name=actor_name)
         if last_anim is None:
@@ -203,9 +204,9 @@ class TakeRecorder:
             popUp.show_popup_message("replay", "[TakeRecorder.py] No last recording found")
             return False
         
-        exportAndSend.export_animation(location, self.stateManager.folder, glosName)
+        exportAndSend.export_animation(location, self.stateManager.folder, gloss_name)
 
-        print(f"Exporting last recording done: {glosName}\tPath: {location}")
+        print(f"Exporting last recording done: {gloss_name}\tPath: {location}")
 
         return True
 
