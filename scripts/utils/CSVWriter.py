@@ -1,8 +1,11 @@
 import unreal
+import os
 import scripts.utils.editorFuncs as editorFuncs
 from scripts.config.params import Config
 import scripts.state.stateManagerScript as stateManagerScript
 import scripts.utils.popUp as popUp
+from scripts.utils.logger import RecordingLog, guess_gloss_from_filename
+_log = RecordingLog()
 
 params = Config()
 
@@ -42,19 +45,29 @@ class LiveLinkFaceCSVWriterComponent:
         success = self.CSVWriterComp.export_file()
         if success:
             unreal.log("[CSVWriter] CSV file exported successfully")
+            csv_path = self.last_file_path
+            gloss = guess_gloss_from_filename(csv_path)
+            _log.add_asset(gloss, "blendshape_csv", csv_path, machine="UE", status="ready")
         else:
             unreal.log_error("[CSVWriter] Failed to export CSV file")
         return success
 
     def set_save_folder(self, folder: str):
+        # Normalize and ensure the directory exists before setting it
+        folder = os.path.normpath(folder or "")
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except Exception as e:
+            unreal.log_error(f"[CSVWriter] Could not create folder '{folder}': {e}")
         self.CSVWriterComp.set_save_folder(folder)
         unreal.log(f"[CSVWriter] Save folder set to: {folder}")
         return folder
-    
+
     def set_filename(self, filename: str):
         self.CSVWriterComp.set_filename(filename)
         unreal.log(f"[CSVWriter] Filename set to: {filename}")
-        self.last_file_path = f"{self.CSVWriterComp.get_save_folder()}/{filename}.csv"
+        folder = os.path.normpath(self.CSVWriterComp.get_save_folder())
+        self.last_file_path = os.path.join(folder, f"{filename}.csv")
         return filename
     
     def check_last_file(self):
@@ -75,6 +88,7 @@ class LiveLinkFaceCSVWriterComponent:
             unreal.log_error("[CSVWriter] No file path set. Please export a file first.")
             return False
         
+        file_path = os.path.normpath(file_path)
         try:
             with open(file_path, 'r') as f:
                 lines = f.readlines()

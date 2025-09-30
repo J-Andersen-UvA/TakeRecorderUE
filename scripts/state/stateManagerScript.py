@@ -41,6 +41,7 @@ class StateManager:
             self.last_location = None
             self.upload_location = None
             self.previous_gloss_name = None
+            self.gloss_name_of_stopped_recording = None
 
             self.folder = None
             if args:
@@ -105,6 +106,8 @@ class StateManager:
         """Sets the recording status using the Status enum."""
         if status not in Status:
             raise ValueError(f"Invalid status: {status}")
+        if status == Status.STOP:
+            self.gloss_name_of_stopped_recording = self.gloss_name
         self.recording_status = status
         print(f"Recording status set to: {status}")
 

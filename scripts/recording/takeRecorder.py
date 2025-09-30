@@ -204,9 +204,20 @@ class TakeRecorder:
             popUp.show_popup_message("replay", "[TakeRecorder.py] No last recording found")
             return False
         
-        exportAndSend.export_animation(location, self.stateManager.folder, gloss_name)
+        success, full_export_path = exportAndSend.export_animation(location, self.stateManager.folder, gloss_name)
+
+        if not success:
+            self.stateManager.flip_export_status()
+            self.stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+            popUp.show_popup_message("Export Failed", f"[TakeRecorder.py] Export failed for {gloss_name}")
+            return False
 
         print(f"Exporting last recording done: {gloss_name}\tPath: {location}")
+
+        # Export fbx to Vicon PC
+        exportAndSend.copy_paste_file_to_vicon_pc(
+            source=full_export_path
+        )
 
         return True
 

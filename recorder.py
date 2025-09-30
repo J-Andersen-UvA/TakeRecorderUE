@@ -9,6 +9,7 @@ import scripts.utils.editorFuncs as editorFuncs
 import scripts.utils.CSVWriter as CSVWriter
 from scripts.config.params import Config
 from scripts.utils.ui_utils import Button
+import scripts.export.exportAndSend as exportAndSend
 
 _take_recorder_started = False
 
@@ -120,8 +121,21 @@ class KeepRunningTakeRecorder:
             self.tk.stop_recording()
             if self.CSVWriter:
                 self.CSVWriter.stop_recording()
-                self.CSVWriter.export_file()
-                self.CSVWriter.check_last_file()
+                ok = self.CSVWriter.export_file()
+                # Export csv to Vicon PC
+                csv_path = self.CSVWriter.last_file_path
+                if csv_path:
+                    success, msg = exportAndSend.copy_paste_file_to_vicon_pc(
+                        source=csv_path,
+                        destination_root="//VICON-SB001869/Recordings"
+                    )
+                    if not success:
+                        popUp.show_popup_message("CSV Export", f"[recorder.py] CSV export to Vicon PC failed: {msg}")
+
+                if not ok:
+                    unreal.log_error("[CSVWriter] Failed to export CSV file.")
+                else:
+                    self.CSVWriter.check_last_file()
             return
 
         if self.stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
@@ -167,7 +181,7 @@ class KeepRunningTakeRecorder:
 
             anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
             self.stateManager.set_last_location(location)
-            if not self.tk.export_animation(location, self.stateManager.folder, self.stateManager.get_last_gloss_name(), actor_name=self.actorNameShorthand):
+            if not self.tk.export_animation(location, self.stateManager.folder, self.stateManager.gloss_name_of_stopped_recording, actor_name=self.actorNameShorthand):
                 self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
             else:
                 self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)

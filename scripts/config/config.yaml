@@ -9,4 +9,5 @@ replay_actor_name: "playLastActor"
 
 # Websocket that controls the statemachine and we need to callback to
 ws_url: "wss://signcollect.nl/unrealServer/"
+# ws_url: "ws://192.168.0.180:8043/unrealServer"
 export_endpoint: "https://signcollect.nl/fbx2glb/upload/"
