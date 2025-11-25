@@ -36,7 +36,7 @@ def get_actor_by_shorthand(short_name):
     print(f"No actor found with shorthand '{short_name}'")
     return None
     
-def load_and_apply_livelink_preset(path: str = "/Game/viconPC.viconPC") -> bool:
+def load_and_apply_livelink_preset(path: str = "/Game/viconPCLan.viconPCLan") -> bool:
     preset = unreal.load_asset(path)
     if not preset:
         unreal.log_error(f"[LiveLink] Couldn’t find preset at '{path}'")

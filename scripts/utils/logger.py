@@ -5,6 +5,7 @@ import socket
 from typing import Dict, List, Any, Optional
 import threading
 _METADATA_LOCK = threading.Lock()
+from scripts.export.endpointSender import send
 
 LOG_DIR = r"D:\MOCAP\Recordings\Logs"   # local
 LOG_FILE = "recordings.jsonl"
@@ -25,6 +26,22 @@ def guess_gloss_from_filename(name: str) -> str:
     base = _basename_no_ext(name)
     base = re.sub(r"_actor\d+_markers$", "", base, flags=re.IGNORECASE)
     return base
+
+def guess_gloss_from_filename_csv(path: str):
+    base = os.path.basename(path)
+    name, _ = os.path.splitext(base)
+
+    # ActivePhone.csv -> gloss is before "_ActivePhone"
+    if "_ActivePhone" in name:
+        return name.split("_ActivePhone")[0]
+
+    # Device_xxx => gloss is before "_Device_"
+    if "_Device_" in name:
+        return name.split("_Device_")[0]
+
+    # fallback: first chunk
+    return name.split("_")[0]
+
 
 class RecordingLog:
     """Single-line-per-recording JSONL writer (replace-latest)."""
@@ -220,9 +237,28 @@ class RecordingLogSingleAnim:
             "quality": {}
         }
 
+        # Lock that helps with our own threads
         with _METADATA_LOCK:
-            with open(metadata_json_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            # Retry logic for file access, in case another process is writing on main machine (we cannot circumvent that with METADATA_LOCK)
+            for attempt in range(5):
+                try:
+                    with open(metadata_json_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    break
+                except (IOError, json.JSONDecodeError):
+                    if attempt == 4:
+                        # last attempt: fallback to new file
+                        fallback_path = os.path.join(
+                            failed_dir,
+                            f"failed_read_{int(time.time())}.json"
+                        )
+                        with open(fallback_path, "w", encoding="utf-8") as ff:
+                            json.dump(entry, ff, indent=2)
+                        print(f"[Exporter] FAILED to read metadata, wrote fallback: {fallback_path}")
+                        return
+                    else:
+                        import time
+                        time.sleep(0.3)
 
         items = data.setdefault("assets", {}).setdefault(asset_key, [])
         for i, it in enumerate(items):
@@ -242,3 +278,4 @@ class RecordingLogSingleAnim:
         os.replace(tmp, metadata_json_path)
 
         print(f"Updated metadata: {metadata_json_path}")
+        send(data)

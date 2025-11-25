@@ -84,7 +84,9 @@ class TakeRecorder:
 
         This function starts the recording process using the take recorder panel.
         """
-        self.take_recorder_panel.start_recording()
+        if self.take_recorder_ready():
+            self.take_recorder_panel.start_recording()
+            return
 
     def stop_recording(self):
         """
@@ -176,8 +178,10 @@ class TakeRecorder:
         Returns:
         - ready (bool): True if the take recorder is ready, False otherwise.
         """
-        print(self.take_recorder_panel.can_start_recording())
-        return self.take_recorder_panel.can_start_recording()
+        err = self.take_recorder_panel.can_start_recording()
+        print(f"Take Recorder readiness check: {err}")
+        unreal.log_warning(f"Take Recorder is not ready to start recording because: {err}.")
+        return not err or str(err).strip() == ""
     
     def error_test(self):
         """

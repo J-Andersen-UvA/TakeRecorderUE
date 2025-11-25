@@ -10,6 +10,8 @@ import scripts.utils.CSVWriter as CSVWriter
 from scripts.config.params import Config
 from scripts.utils.ui_utils import Button
 import scripts.export.exportAndSend as exportAndSend
+from scripts.utils.logger import RecordingLog, guess_gloss_from_filename
+_log = RecordingLog()
 
 _take_recorder_started = False
 
@@ -50,7 +52,7 @@ class KeepRunningTakeRecorder:
         self.resettingPopUpText = None
         self.resettingPopUpTitle = None
 
-        self.CSVWriter = CSVWriter.LiveLinkFaceCSVWriterComponent(stateManager)
+        self.CSVWriter = CSVWriter.LiveLinkCSVManagerWrapper(stateManager)
         # self.CSVWriter.check_cur_subject_available()
 
     def start(self) -> None:
@@ -89,17 +91,19 @@ class KeepRunningTakeRecorder:
         """
         # When resetting, we are waiting for the take recorder to be ready (making it so he has saved the last recording)
         if self.stateManager.get_recording_status() == stateManagerScript.Status.RESETTING:
-            # don’t go to IDLE until Unreal tells us it’s safe
+
+            # Wait until Unreal confirms everything is saved
             if not self.tk.take_recorder_ready():
                 return
 
             self.stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             print("[recorder.py] Resetting state to idle.")
-            
+
             if self.resettingPopUpText:
                 popUp.show_popup_message(self.resettingPopUpTitle, self.resettingPopUpText)
                 self.resettingPopUpText = None
                 self.resettingPopUpTitle = None
+
             return
 
         if self.stateManager.get_recording_status() == stateManagerScript.Status.DIE:
@@ -110,9 +114,8 @@ class KeepRunningTakeRecorder:
             self.tk.set_slate_name(self.stateManager.get_gloss_name())
             print(f"[recorder.py] Starting recording with slate name: {self.stateManager.get_gloss_name()}")
             self.tk.start_recording()
-            if self.CSVWriter:
-                self.CSVWriter.set_filename(self.stateManager.get_gloss_name())
-                self.CSVWriter.start_recording()
+            if self.CSVWriter and not self.CSVWriter.manager.is_recording():
+                self.CSVWriter.start_recording(self.stateManager.get_gloss_name())
             self.stateManager.set_recording_status(stateManagerScript.Status.RECORDING)
             return
 
@@ -120,55 +123,83 @@ class KeepRunningTakeRecorder:
             self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
             self.tk.stop_recording()
             if self.CSVWriter:
-                self.CSVWriter.stop_recording()
-                ok = self.CSVWriter.export_file()
-                # Export csv to Vicon PC
-                csv_path = self.CSVWriter.last_file_path
-                if csv_path:
-                    success, msg = exportAndSend.copy_paste_file_to_vicon_pc(
-                        source=csv_path,
-                        destination_root="//VICON-SB001869/Recordings"
+                ok = self.CSVWriter.stop_and_export(self.stateManager.get_gloss_name())
+                for csv_path in self.CSVWriter.last_file_paths:
+                    gloss = guess_gloss_from_filename(csv_path)
+
+                    # Add to logging system
+                    _log.add_asset(
+                        gloss,
+                        "blendshape_csv",
+                        csv_path,
+                        machine="UE",
+                        status="ready"
                     )
-                    if not success:
-                        popUp.show_popup_message("CSV Export", f"[recorder.py] CSV export to Vicon PC failed: {msg}")
+
+                    if csv_path:
+                        unreal.log(f"[recorder.py] Exporting CSV file at: {csv_path}")
+                        success, msg = exportAndSend.copy_paste_file_to_vicon_pc(
+                            source=csv_path,
+                            destination_root="//VICON-SB001869/Recordings"
+                        )
+                        if not success:
+                            popUp.show_popup_message(
+                                "CSV Export",
+                                f"[recorder.py] CSV export to Vicon PC failed: {msg}"
+                            )
 
                 if not ok:
                     unreal.log_error("[CSVWriter] Failed to export CSV file.")
                 else:
                     self.CSVWriter.check_last_file()
+
             return
 
         if self.stateManager.get_recording_status() == stateManagerScript.Status.REPLAY_RECORD:
-            # ensure we’ve got the very latest take
+
+            # Wait until Unreal finished saving the take.
             if not self.tk.take_recorder_ready():
                 return
 
             print("[recorder.py] Replaying last recording...")
-            last_anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
 
-            if last_anim is None or location == self.stateManager.get_last_location():
-                for _ in range(5):
+            last_anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
+            old_location = self.stateManager.get_last_location()
+
+            # If missing or identical → retry (UE might still be finishing)
+            if last_anim is None or location == old_location:
+
+                for _ in range(10):  # give UE more time
                     last_anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
-                    if last_anim is not None:
+                    if last_anim is not None and location != old_location:
                         break
 
-                self.resettingPopUpText = "[recorder.py] No last recording found. Set state to idle."
-                self.resettingPopUpTitle = "replay"
-                if location == self.stateManager.get_last_location():
-                    self.resettingPopUpText = "[recorder.py] Replaying the same recording. Set state to idle. Please re-record if you want the export to work."
+                # After retries, still nothing or same recording
+                if last_anim is None:
                     self.resettingPopUpTitle = "replay"
+                    self.resettingPopUpText = "[recorder.py] No last recording found."
+                    self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
+                    return
 
-                self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
-                return
+                if location == old_location:
+                    self.resettingPopUpTitle = "replay"
+                    self.resettingPopUpText = "[recorder.py] Replaying the same recording. Please re-record."
+                    self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
+                    return
 
+            # Successful new take → replay
             print(f"[recorder.py] Replaying animation at: {location}")
             self.tk.replay_anim(
                 replay_actor=self.replayActor,
                 anim=last_anim
             )
 
+            # Update last location
+            self.stateManager.set_last_location(location)
+
             self.resettingPopUpText = None
             self.resettingPopUpTitle = None
+
             self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
             return
 

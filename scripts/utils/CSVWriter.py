@@ -1,3 +1,4 @@
+from csv import writer
 import unreal
 import os
 import scripts.utils.editorFuncs as editorFuncs
@@ -9,76 +10,78 @@ _log = RecordingLog()
 
 params = Config()
 
-class LiveLinkFaceCSVWriterComponent:
-    """
-    Custom component to write Live Link Face data to CSV files.
-    """
-
-    def __init__(self, statemanager : stateManagerScript.StateManager, subj_name: str = "iPhone"):
-        super().__init__()
-        # Find the Actor in your level that has the CSV‐writer component
-        my_actor = editorFuncs.get_actor_by_name(params.actor_name)
-        if not my_actor:
-            unreal.log_error("[CSVWriter] Actor not found!")
+class LiveLinkCSVManagerWrapper:
+    def __init__(self, statemanager):
+        self.state_manager = statemanager
+        self.manager = unreal.get_editor_subsystem(
+            unreal.LiveLinkFaceCSVWriterManager
+        )
+        if not self.manager:
+            unreal.log_error("[CSVWriter] LiveLinkFaceCSVWriterManager not found")
             raise RuntimeError
 
-        self.CSVWriterComp = my_actor.get_component_by_class(unreal.LiveLinkFaceCSVWriterComponent)
+        # 1) set the export path from the state manager
+        self.set_save_folder(self.state_manager.folder)
 
-        self.CSVWriterComp.set_subject_name(unreal.Name(subj_name))
-        self.subj_name = subj_name
-        self.set_save_folder(statemanager.folder)
-        self.CSVWriterComp.set_filename("MyCaptureData")
-
-        self.last_file_path = None
-    
-    def start_recording(self):
-        success = self.CSVWriterComp.start_recording()
-        if success:
-            unreal.log("[CSVWriter] Recording started")
-        else:
-            unreal.log_error("[CSVWriter] Failed to start recording")
-
-    def stop_recording(self):
-        self.CSVWriterComp.stop_recording()
-
-    def export_file(self):
-        success = self.CSVWriterComp.export_file()
-        if success:
-            unreal.log("[CSVWriter] CSV file exported successfully")
-            csv_path = self.last_file_path
-            gloss = guess_gloss_from_filename(csv_path)
-            _log.add_asset(gloss, "blendshape_csv", csv_path, machine="UE", status="ready")
-        else:
-            unreal.log_error("[CSVWriter] Failed to export CSV file")
-        return success
+        # 2) writers for each device + active writer
+        #    (you probably create them from EUW / BP using CreateWriterForDevice
+        #     and CreateActivePhoneWriter; Python can assume they exist)
+        self.last_file_paths = []  # list of all exported csvs
 
     def set_save_folder(self, folder: str):
-        # Normalize and ensure the directory exists before setting it
         folder = os.path.normpath(folder or "")
-        try:
-            os.makedirs(folder, exist_ok=True)
-        except Exception as e:
-            unreal.log_error(f"[CSVWriter] Could not create folder '{folder}': {e}")
-        self.CSVWriterComp.set_save_folder(folder)
-        unreal.log(f"[CSVWriter] Save folder set to: {folder}")
+        os.makedirs(folder, exist_ok=True)
+        self.manager.set_export_path(folder)
+        unreal.log(f"[CSVWriter] Export path set to: {folder}")
         return folder
 
-    def set_filename(self, filename: str):
-        self.CSVWriterComp.set_filename(filename)
-        unreal.log(f"[CSVWriter] Filename set to: {filename}")
-        folder = os.path.normpath(self.CSVWriterComp.get_save_folder())
-        self.last_file_path = os.path.join(folder, f"{filename}.csv")
-        return filename
-    
+    def start_recording(self, gloss: str):
+        """
+        Called when recording starts. Optionally use 'gloss'
+        to adjust filenames before starting.
+        """
+        self.manager.apply_name_to_filenames(gloss)
+        ok = self.manager.start_recording()
+        unreal.log(f"[CSVWriter] Manager start_recording -> {ok}")
+        return ok
+
+    def stop_and_export(self, gloss: str):
+        self.manager.stop_recording()
+        ok = self.manager.export_all_files()
+
+        self.last_file_paths = []
+        exported = list(self.manager.last_exported_files)
+
+        if not exported:
+            unreal.log_warning("[CSVWriter] No exported files reported by plugin.")
+
+        self.last_file_paths = []
+
+        for path in exported:
+            path = os.path.normpath(path)
+
+            if os.path.exists(path):
+                self.last_file_paths.append(path)
+            else:
+                unreal.log_error(f"[CSVWriter] Exported file missing: {path}")
+
+        return ok
+
     def check_last_file(self):
-        """
-        Check if the last exported file exists and return its path.
-        """
-        if not self.last_file_path:
-            popUp.show_popup_message("[CSVWriter] Error", "No last_file_path set in CSVWriter.")
+        if not self.last_file_paths:
+            popUp.show_popup_message("[CSVWriter] Error", "No CSV files recorded or exported.")
             return None
         
-        return self.check_file_minimum_rows(self.last_file_path)
+        results = []
+        for path in self.last_file_paths:
+            # If it is the switches CSV, check for minimum rows 2
+            if path.endswith("_Switches.csv"):
+                ok = self.check_file_minimum_rows(path, min_rows=2)
+            else:
+                ok = self.check_file_minimum_rows(path)
+            results.append((path, ok))
+        
+        return results      # returns list of (path, True/False)
         
     def check_file_minimum_rows(self, file_path, min_rows: int = 50):
         """

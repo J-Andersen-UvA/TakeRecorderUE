@@ -135,10 +135,13 @@ class websocketCommunication:
                 self.ws.send(json.dumps(ws_JSON))
                 return
 
-            ws_JSON = {
-                "handler": "startRecordingConfirmed",
-            }
-            self.ws.send(json.dumps(ws_JSON))
+            if (self.wait_for_state(stateManagerScript.Status.RECORDING) == True):
+                ws_JSON = {
+                    "handler": "startRecordingConfirmed",
+                }
+                self.ws.send(json.dumps(ws_JSON))
+            else:
+                print("Recording state not reached in time")
         
         if message["set"] == "broadcastGlos":
             print(stateManager.set_gloss_name(message["handler"]))
