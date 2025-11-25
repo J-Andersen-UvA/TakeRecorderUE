@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os, json, datetime, re
 import socket
+import time
 from typing import Dict, List, Any, Optional
 import threading
 _METADATA_LOCK = threading.Lock()
@@ -205,13 +206,23 @@ class RecordingLogSingleAnim:
         metadata_dir = os.path.join(anim_dir, "metadata")
 
         if not os.path.isdir(metadata_dir):
-            raise FileNotFoundError(f"Metadata folder not found: {metadata_dir}")
+            os.makedirs(metadata_dir, exist_ok=True)
 
+        # Look for existing JSON
         json_files = [f for f in os.listdir(metadata_dir) if f.lower().endswith(".json")]
+        ### If no metadata exists, create a fresh one
         if not json_files:
-            raise FileNotFoundError(f"No metadata JSON in: {metadata_dir}")
-        # pick the first (or latest if you prefer)
-        json_files.sort(key=lambda f: os.path.getmtime(os.path.join(metadata_dir, f)), reverse=True)
+            initial_path = os.path.join(metadata_dir, "metadata.json")
+            with open(initial_path, "w", encoding="utf-8") as f:
+                json.dump({"assets": {}, "updated_at": None}, f, indent=2)
+                f.write("\n")
+            return initial_path
+
+        # Pick latest metadata.json
+        json_files.sort(
+            key=lambda f: os.path.getmtime(os.path.join(metadata_dir, f)),
+            reverse=True
+        )
         return os.path.join(metadata_dir, json_files[0])
 
     @staticmethod
@@ -245,37 +256,58 @@ class RecordingLogSingleAnim:
                     with open(metadata_json_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     break
-                except (IOError, json.JSONDecodeError):
+                except Exception as e:
                     if attempt == 4:
-                        # last attempt: fallback to new file
+                        ### NEW: fallback on read failure
                         fallback_path = os.path.join(
-                            failed_dir,
-                            f"failed_read_{int(time.time())}.json"
+                            metadata_dir, f"failed_read_{int(time.time())}.json"
                         )
                         with open(fallback_path, "w", encoding="utf-8") as ff:
                             json.dump(entry, ff, indent=2)
-                        print(f"[Exporter] FAILED to read metadata, wrote fallback: {fallback_path}")
+                            ff.write("\n")
+                        print(f"[Exporter] FAILED read, wrote to fallback path: {fallback_path}")
                         return
                     else:
-                        import time
                         time.sleep(0.3)
 
-        items = data.setdefault("assets", {}).setdefault(asset_key, [])
-        for i, it in enumerate(items):
-            if isinstance(it, dict) and it.get("path") == entry["path"]:
-                items[i] = entry
-                break
-        else:
-            items.append(entry)
+            # Insert/update asset entry
+            items = data.setdefault("assets", {}).setdefault(asset_key, [])
+            for i, it in enumerate(items):
+                if isinstance(it, dict) and it.get("path") == entry["path"]:
+                    items[i] = entry
+                    break
+            else:
+                items.append(entry)
 
-        data["updated_at"] = datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            data["updated_at"] = datetime.datetime.now(
+                tz=datetime.timezone.utc
+            ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        # atomic write
-        tmp = metadata_json_path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-            f.write("\n")
-        os.replace(tmp, metadata_json_path)
+            # -------------------------
+            # WRITE PHASE (with retries)
+            # -------------------------
+            for attempt in range(5):
+                try:
+                    tmp = metadata_json_path + ".tmp"
+                    with open(tmp, "w", encoding="utf-8") as f:
+                        json.dump(data, f, indent=2)
+                        f.write("\n")
+                    os.replace(tmp, metadata_json_path)
+                    break
+                except Exception as e:
+                    if attempt == 4:
+                        ### NEW: fallback on write failure
+                        fallback_path = os.path.join(
+                            metadata_dir, f"failed_write_{int(time.time())}.json"
+                        )
+                        with open(fallback_path, "w", encoding="utf-8") as ff:
+                            json.dump(data, ff, indent=2)
+                            ff.write("\n")
+                        print(f"[Exporter] FAILED write, wrote fallback: {fallback_path}")
+                        return
+                    else:
+                        time.sleep(0.3)
 
         print(f"Updated metadata: {metadata_json_path}")
         send(data)
+        
