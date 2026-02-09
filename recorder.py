@@ -100,7 +100,8 @@ class KeepRunningTakeRecorder:
             print("[recorder.py] Resetting state to idle.")
 
             if self.resettingPopUpText:
-                popUp.show_popup_message(self.resettingPopUpTitle, self.resettingPopUpText)
+                popUp.show_timed_popup(self.resettingPopUpTitle, self.resettingPopUpText, seconds=7)
+                # popUp.show_popup_message(self.resettingPopUpTitle, self.resettingPopUpText)
                 self.resettingPopUpText = None
                 self.resettingPopUpTitle = None
 
