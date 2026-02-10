@@ -41,12 +41,27 @@ class KeepRunningTakeRecorder:
         print("Initializing KeepRunningTakeRecorder...")
         self.tk = tk
         self.stateManager = stateManager
+
+        # Initialize actors and their shorthands from the config
         self.actorName = params.actor_name
         self.actorNameShorthand = params.actor_name_shorthand
         self.replayActor = editorFuncs.get_actor_by_name(params.replay_actor_name)
         if self.replayActor is None:
             print(f"[recorder.py] Replay actor '{params.replay_actor_name}' not found in the level.")
             popUp.show_popup_message("KeepRunningTakeRecorder", f"[recorder.py] Replay actor '{params.replay_actor_name}' not found in the level.")
+
+        # Second actor (optional)
+        self.actorName2 = params.get('actor2_name')
+        self.actorName2Shorthand = params.get('actor2_name_shorthand')
+        replay_actor2_name = params.get('replay_actor2_name')
+        self.replayActor2 = editorFuncs.get_actor_by_name(replay_actor2_name) if replay_actor2_name else None
+        if replay_actor2_name and self.replayActor2 is None:
+            print(f"[recorder.py] Replay actor '{replay_actor2_name}' not found in the level.")
+            popUp.show_popup_message("KeepRunningTakeRecorder", f"[recorder.py] Replay actor '{replay_actor2_name}' not found in the level.")
+
+        # Third actor, vicon no replay (optional)
+        self.actorName3 = params.get('actor3_name')
+        self.actorName3Shorthand = params.get('actor3_name_shorthand')
 
         self.slate_post_tick_handle = None
         self.resettingPopUpText = None
@@ -165,6 +180,12 @@ class KeepRunningTakeRecorder:
             print("[recorder.py] Replaying last recording...")
 
             last_anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
+            last_anim2, location2 = None, None
+            if self.actorName2Shorthand:
+                last_anim2, location2 = self.tk.fetch_last_animation(actor_name=self.actorName2Shorthand)
+            last_anim3, location3 = None, None
+            if self.actorName3Shorthand:
+                last_anim3, location3 = self.tk.fetch_last_animation(actor_name=self.actorName3Shorthand)
             old_location = self.stateManager.get_last_location()
 
             # If missing or identical → retry (UE might still be finishing)
@@ -188,12 +209,32 @@ class KeepRunningTakeRecorder:
                     self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
                     return
 
+            # Check second actor animation
+            if last_anim2 is None:
+                self.resettingPopUpTitle = "replay"
+                self.resettingPopUpText = "[recorder.py] No last recording found for second actor."
+                self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
+                return
+            
+            if last_anim3 is None:
+                self.resettingPopUpTitle = "replay"
+                self.resettingPopUpText = "[recorder.py] No last recording found for third actor (vicon)."
+                self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
+                return
+
             # Successful new take → replay
             print(f"[recorder.py] Replaying animation at: {location}")
             self.tk.replay_anim(
                 replay_actor=self.replayActor,
                 anim=last_anim
             )
+
+            if self.replayActor2 and last_anim2:
+                print(f"[recorder.py] Replaying second actor animation at: {location2}")
+                self.tk.replay_anim(
+                    replay_actor=self.replayActor2,
+                    anim=last_anim2
+                )
 
             # Update last location
             self.stateManager.set_last_location(location)
@@ -213,10 +254,24 @@ class KeepRunningTakeRecorder:
 
             anim, location = self.tk.fetch_last_animation(actor_name=self.actorNameShorthand)
             self.stateManager.set_last_location(location)
-            if not self.tk.export_animation(location, self.stateManager.folder, self.stateManager.gloss_name_of_stopped_recording, actor_name=self.actorNameShorthand):
+            if not self.tk.export_animation(location, self.stateManager.folder, self.stateManager.gloss_name_of_stopped_recording, actor_name=self.actorNameShorthand, avatar=self.actorNameShorthand):
                 self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
             else:
                 self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
+
+            if self.actorName2Shorthand:
+                anim2, location2 = self.tk.fetch_last_animation(actor_name=self.actorName2Shorthand)
+                if not self.tk.export_animation(location2, self.stateManager.folder, self.stateManager.gloss_name_of_stopped_recording, actor_name=self.actorName2Shorthand, subfolder="CC", avatar=self.actorName2Shorthand, preview_mesh=False):
+                    self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
+                elif self.stateManager.get_recording_status() != stateManagerScript.Status.EXPORT_FAIL:  # only set to success if the first export didn’t fail
+                    self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
+
+            if self.actorName3Shorthand:
+                anim3, location3 = self.tk.fetch_last_animation(actor_name=self.actorName3Shorthand)
+                if not self.tk.export_animation(location3, self.stateManager.folder, self.stateManager.gloss_name_of_stopped_recording, actor_name=self.actorName3Shorthand, subfolder="Vicon", avatar=self.actorName3Shorthand, preview_mesh=False):
+                    self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
+                elif self.stateManager.get_recording_status() != stateManagerScript.Status.EXPORT_FAIL:  # only set to success if the first export didn’t fail
+                    self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
 
         # If the recording status is idle, we check if the gloss name is different from the last one
         if self.stateManager.get_recording_status() == stateManagerScript.Status.IDLE:
@@ -241,7 +296,15 @@ def main():
     stateManager.set_endpoint_file(params.export_endpoint)
     stateManager.set_recording_status(stateManagerScript.Status.IDLE)
     tk = takeRecorder.TakeRecorder(stateManager)
+    # First actor
     tk.add_actor_to_take_recorder(editorFuncs.get_actor_by_shorthand(params.actor_name_shorthand))
+
+    if params.get('actor2_name_shorthand'):
+        # Second actor
+        tk.add_actor_to_take_recorder(editorFuncs.get_actor_by_shorthand(params.get('actor2_name_shorthand')))
+    if params.get('actor3_name_shorthand'):
+        # Third actor
+        tk.add_actor_to_take_recorder(editorFuncs.get_actor_by_shorthand(params.get('actor3_name_shorthand')))
 
     ktk = KeepRunningTakeRecorder(tk, stateManager, "")
     ktk.start()

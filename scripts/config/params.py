@@ -26,3 +26,7 @@ class Config:
             return self._data[name]
         except KeyError:
             raise AttributeError(f"No config attribute called {name}")
+    
+    def get(self, name, default=None):
+        """Get a config value with a default if it doesn't exist."""
+        return self._data.get(name, default)

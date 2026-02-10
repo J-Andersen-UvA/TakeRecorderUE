@@ -7,9 +7,14 @@ from scripts.utils.logger import RecordingLog, RecordingLogSingleAnim, guess_glo
 import shutil
 _log = RecordingLog()
 
-def export_animation(animation_asset_path : str, export_path : str, name : str = "animation", ascii : bool = False, force_front_x_axis : bool = False):
+def export_animation(animation_asset_path : str, export_path : str, name : str = "animation", ascii : bool = False, force_front_x_axis : bool = False, subfolder : str = "", avatar : str = None, preview_mesh : bool = True):
     if not export_path.endswith("/"):
         export_path += "/"
+    
+    # Create subfolder if specified
+    if subfolder:
+        export_path = f"{export_path}{subfolder}/"
+        os.makedirs(export_path, exist_ok=True)
 
     # Full export filename including .fbx extension
     full_export_path = f"{export_path}{name}.fbx"
@@ -18,7 +23,7 @@ def export_animation(animation_asset_path : str, export_path : str, name : str =
     FbxExportOptions.ascii = ascii
     FbxExportOptions.export_local_time = True
     FbxExportOptions.export_morph_targets = True
-    FbxExportOptions.export_preview_mesh = True
+    FbxExportOptions.export_preview_mesh = preview_mesh
     FbxExportOptions.force_front_x_axis = force_front_x_axis
 
     task = unreal.AssetExportTask()
@@ -35,21 +40,21 @@ def export_animation(animation_asset_path : str, export_path : str, name : str =
     if not unreal.Exporter.run_asset_export_task(task):
         raise ValueError(f"Failed to export animation at path {animation_asset_path}")
 
-    _log.add_asset(name, "retargeted_animation_fbx", full_export_path, machine="UE", status="ready")
+    _log.add_asset(name, "retargeted_animation_fbx", full_export_path, machine="UE", status="ready", avatar=avatar)
     return True, full_export_path # success, path
 
-def _copy_file_in_background(source: str, destination: str):
+def _copy_file_in_background(source: str, destination: str, avatar: str | None = None):
     try:
         shutil.copyfile(source, destination)
         print(f"[Exporter] Copied {source} -> {destination}")
         machine_name = None
         if destination.startswith("//") or destination.startswith("\\\\"):
             machine_name = destination.split("\\")[2] if destination.startswith("\\\\") else destination[2:].split("/")[0]
-        RecordingLogSingleAnim._update_metadata(destination, machine=machine_name)
+        RecordingLogSingleAnim._update_metadata(destination, machine=machine_name, avatar=avatar)
     except Exception as e:
         print(f"[Exporter] Failed to copy {source} -> {destination}\nError: {e}")
 
-def copy_paste_file_to_vicon_pc(source: str, destination_root: str = "//VICON-SB001869/Recordings"):
+def copy_paste_file_to_vicon_pc(source: str, destination_root: str = "//VICON-SB001869/Recordings", subfolder: str = "", avatar: str | None = None):
     # Validate source
     if not os.path.exists(source):
         return False, f"Source file does not exist: {source}"
@@ -64,6 +69,10 @@ def copy_paste_file_to_vicon_pc(source: str, destination_root: str = "//VICON-SB
         anim_name = os.path.splitext(os.path.basename(source))[0]
 
     destination_folder = os.path.join(destination_dated_folder, anim_name, "unreal")
+    
+    # Add subfolder if specified
+    if subfolder:
+        destination_folder = os.path.join(destination_folder, subfolder)
 
     try:
         # Ensure remote folder exists (UNC paths are supported if permissions allow)
@@ -76,7 +85,7 @@ def copy_paste_file_to_vicon_pc(source: str, destination_root: str = "//VICON-SB
     # Copy file in a background thread
     thread = threading.Thread(
         target=_copy_file_in_background,
-        args=(source, destination),
+        args=(source, destination, avatar),
         daemon=True
     )
     thread.start()

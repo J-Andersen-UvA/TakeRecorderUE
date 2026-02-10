@@ -162,7 +162,7 @@ class RecordingLog:
         }
 
     def add_asset(self, gloss_or_path: str, asset_type: str, path: str, machine="UE",
-                  status="ready", mtime: Optional[str] = None) -> Dict[str, Any]:
+                  status="ready", mtime: Optional[str] = None, avatar: Optional[str] = None) -> Dict[str, Any]:
         gloss = guess_gloss_from_filename(gloss_or_path)
         rec = self._upsert_by_gloss(gloss)
 
@@ -178,16 +178,20 @@ class RecordingLog:
                 it["status"]  = status or it.get("status", "ready")
                 it["mtime"]   = mtime or it.get("mtime") or _utc_now_iso()
                 it["machine"] = machine or it.get("machine")
+                if avatar:
+                    it["avatar"] = avatar
                 self._append_or_replace_latest(rec)
                 return rec
 
-        rec["assets"][asset_type].append({
+        asset_entry = {
             "path": abspath,
+            "avatar": avatar,
             "machine": machine,
             "status": status,
             "mtime": mtime or _utc_now_iso(),
             "quality": {},
-        })
+        }
+        rec["assets"][asset_type].append(asset_entry)
         self._append_or_replace_latest(rec)
         return rec
 
@@ -201,16 +205,27 @@ class RecordingLogSingleAnim:
 
     @staticmethod
     def _find_metadata_json(file_path: str) -> str:
-        unreal_dir = os.path.dirname(file_path)
-        anim_dir = os.path.dirname(unreal_dir)  # up from Unreal/
+        # Walk upwards until we hit the "unreal" folder (case-insensitive)
+        d = os.path.dirname(os.path.abspath(file_path))
+        unreal_dir = None
+        while True:
+            if os.path.basename(d).lower() == "unreal":
+                unreal_dir = d
+                break
+            parent = os.path.dirname(d)
+            if parent == d:
+                break
+            d = parent
+
+        # Fallback to old behavior if we didn't find it
+        if unreal_dir is None:
+            unreal_dir = os.path.dirname(os.path.abspath(file_path))
+
+        anim_dir = os.path.dirname(unreal_dir)  # <gloss> folder
         metadata_dir = os.path.join(anim_dir, "metadata")
+        os.makedirs(metadata_dir, exist_ok=True)
 
-        if not os.path.isdir(metadata_dir):
-            os.makedirs(metadata_dir, exist_ok=True)
-
-        # Look for existing JSON
         json_files = [f for f in os.listdir(metadata_dir) if f.lower().endswith(".json")]
-        ### If no metadata exists, create a fresh one
         if not json_files:
             initial_path = os.path.join(metadata_dir, "metadata.json")
             with open(initial_path, "w", encoding="utf-8") as f:
@@ -218,15 +233,11 @@ class RecordingLogSingleAnim:
                 f.write("\n")
             return initial_path
 
-        # Pick latest metadata.json
-        json_files.sort(
-            key=lambda f: os.path.getmtime(os.path.join(metadata_dir, f)),
-            reverse=True
-        )
+        json_files.sort(key=lambda f: os.path.getmtime(os.path.join(metadata_dir, f)), reverse=True)
         return os.path.join(metadata_dir, json_files[0])
 
     @staticmethod
-    def _update_metadata(file_path: str, machine: str):
+    def _update_metadata(file_path: str, machine: str, avatar: str | None = None):
         ext = os.path.splitext(file_path)[1].lower()
         if ext == ".csv":
             asset_key = "blendshape_csv"
@@ -247,6 +258,8 @@ class RecordingLogSingleAnim:
             "mtime": RecordingLogSingleAnim._isoformat_utc(mtime),
             "quality": {}
         }
+        if avatar:
+            entry["avatar"] = avatar
 
         # Lock that helps with our own threads
         with _METADATA_LOCK:
@@ -274,7 +287,7 @@ class RecordingLogSingleAnim:
             items = data.setdefault("assets", {}).setdefault(asset_key, [])
             for i, it in enumerate(items):
                 if isinstance(it, dict) and it.get("path") == entry["path"]:
-                    items[i] = entry
+                    it.update(entry)
                     break
             else:
                 items.append(entry)

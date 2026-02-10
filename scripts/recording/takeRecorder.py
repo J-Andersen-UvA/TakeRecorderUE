@@ -30,7 +30,9 @@ class TakeRecorder:
         self.stateManager = stateManager
 
         unreal.TakeRecorderBlueprintLibrary.open_take_recorder_panel()
-        self.take_recorder_panel = unreal.TakeRecorderBlueprintLibrary.get_take_recorder_panel()
+        self.take_recorder_panel = None
+        self.metadata = None
+        self.ensure_take_recorder_panel()
         self.levelSequence = unreal.LevelSequence
         self.metadata = self.take_recorder_panel.get_take_meta_data()
         self.UEFileFuncs = UEFileManager.UEFileFunctionalities()        
@@ -47,6 +49,27 @@ class TakeRecorder:
         # any character _not_ in A–Z a–z 0–9 space _ or -
         _SANITIZE_RE = re.compile(r'[^0-9A-Za-z _-]')
         return _SANITIZE_RE.sub(replacement, name)
+
+    def ensure_take_recorder_panel(self) -> bool:
+        panel = unreal.TakeRecorderBlueprintLibrary.get_take_recorder_panel()
+        if panel is None:
+            panel = unreal.TakeRecorderBlueprintLibrary.open_take_recorder_panel()
+
+        if panel is None:
+            unreal.log_error("[TakeRecorder] Could not open Take Recorder panel.")
+            return False
+
+        # Optional: UE5.7 C++ API has IsPanelOpen; Python name may differ by build.
+        # So only call if it exists.
+        if hasattr(panel, "is_panel_open") and not panel.is_panel_open():
+            panel = unreal.TakeRecorderBlueprintLibrary.open_take_recorder_panel()
+            if panel is None:
+                unreal.log_error("[TakeRecorder] Take Recorder panel exists but is not open and could not be reopened.")
+                return False
+
+        self.take_recorder_panel = panel
+        self.metadata = self.take_recorder_panel.get_take_meta_data()
+        return True
 
     def get_slate(self) -> str:
         """Retrieve the slate information from the take recorder panel."""
@@ -196,7 +219,7 @@ class TakeRecorder:
         popUp.show_popup_message("Error Test", "This is a pop-up message from Unreal Python!")
         return False
 
-    def export_animation(self, location, folder, gloss_name, actor_name="GlassesGuyRecord"):
+    def export_animation(self, location, folder, gloss_name, actor_name="GlassesGuyRecord", subfolder: str = "", avatar: str = None, preview_mesh: bool = True, force_front_x_axis: bool = False):
         if not gloss_name:
             gloss_name = self.stateManager.get_gloss_name()
         print(f"Exporting last recording: {gloss_name}...")
@@ -208,7 +231,7 @@ class TakeRecorder:
             popUp.show_popup_message("replay", "[TakeRecorder.py] No last recording found")
             return False
         
-        success, full_export_path = exportAndSend.export_animation(location, self.stateManager.folder, gloss_name)
+        success, full_export_path = exportAndSend.export_animation(location, self.stateManager.folder, gloss_name, subfolder=subfolder, avatar=avatar, preview_mesh=preview_mesh, force_front_x_axis=force_front_x_axis)
 
         if not success:
             self.stateManager.flip_export_status()
@@ -220,7 +243,9 @@ class TakeRecorder:
 
         # Export fbx to Vicon PC
         exportAndSend.copy_paste_file_to_vicon_pc(
-            source=full_export_path
+            source=full_export_path,
+            subfolder=subfolder,
+            avatar=avatar
         )
 
         return True

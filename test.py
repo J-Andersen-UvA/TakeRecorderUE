@@ -68,6 +68,9 @@ loca_1 = "/Game/Cinematics/Takes/2025-02-11/Scene_1_222_Subscenes/Animation/Glas
 _, loca_2 = fetch_last_animation(take_recorder_panel)
 popUp.show_popup_message("recordings equal?", f"{loca_1} == {loca_2}\n{loca_1 == loca_2}")
 
+
+import unreal
+
 def print_all_actors():
     """
     Fetch an actor by name.

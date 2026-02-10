@@ -2,10 +2,19 @@
 record_path: "D:\\MOCAP\\Recordings\\RecordingsUE\\"
 
 # Name of actor that is being recorded (used for skeleton identification and take identification)
-actor_name: "GlassesGuyRecord_C_2"
+# actor_name: "GGRecNew_C_1"
+# actor_name_shorthand: "GGRecNew"
+actor_name: "GlassesGuyRecord_C_1"
 actor_name_shorthand: "GlassesGuyRecord"
 # Name of the replay actor
 replay_actor_name: "playLastActor"
+
+# actor2_name: "PalmerRec_C_1"
+# actor2_name_shorthand: "PalmerRec"
+# replay_actor2_name: "playLastActor2"
+
+# actor3_name: "SkeletalMeshActor_1"
+# actor3_name_shorthand: "Vicon"
 
 # Websocket that controls the statemachine and we need to callback to
 ws_url: "wss://signcollect.nl/unrealServer/"
