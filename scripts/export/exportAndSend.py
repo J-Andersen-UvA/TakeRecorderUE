@@ -19,26 +19,41 @@ def export_animation(animation_asset_path : str, export_path : str, name : str =
     # Full export filename including .fbx extension
     full_export_path = f"{export_path}{name}.fbx"
 
-    FbxExportOptions = unreal.FbxExportOption()
-    FbxExportOptions.ascii = ascii
-    FbxExportOptions.export_local_time = True
-    FbxExportOptions.export_morph_targets = True
-    FbxExportOptions.export_preview_mesh = preview_mesh
-    FbxExportOptions.force_front_x_axis = force_front_x_axis
+    animation_asset = None
+    task = None
+    FbxExportOptions = None
+    try:
+        FbxExportOptions = unreal.FbxExportOption()
+        FbxExportOptions.ascii = ascii
+        FbxExportOptions.export_local_time = True
+        FbxExportOptions.export_morph_targets = True
+        FbxExportOptions.export_preview_mesh = preview_mesh
+        FbxExportOptions.force_front_x_axis = force_front_x_axis
 
-    task = unreal.AssetExportTask()
-    task.set_editor_property("exporter", unreal.AnimSequenceExporterFBX())
-    task.options = FbxExportOptions
-    task.automated = True
-    task.filename = full_export_path
-    task.object = unreal.load_asset(animation_asset_path)
-    task.write_empty_files = False
-    task.replace_identical = True
-    task.prompt = False
+        animation_asset = unreal.load_asset(animation_asset_path)
+        if animation_asset is None:
+            raise ValueError(f"Could not load animation at path {animation_asset_path}")
 
-    # Export the animation
-    if not unreal.Exporter.run_asset_export_task(task):
-        raise ValueError(f"Failed to export animation at path {animation_asset_path}")
+        task = unreal.AssetExportTask()
+        task.set_editor_property("exporter", unreal.AnimSequenceExporterFBX())
+        task.options = FbxExportOptions
+        task.automated = True
+        task.filename = full_export_path
+        task.object = animation_asset
+        task.write_empty_files = False
+        task.replace_identical = True
+        task.prompt = False
+
+        # Export the animation
+        if not unreal.Exporter.run_asset_export_task(task):
+            raise ValueError(f"Failed to export animation at path {animation_asset_path}")
+    finally:
+        if task is not None:
+            task.object = None
+            task.options = None
+        animation_asset = None
+        FbxExportOptions = None
+        task = None
 
     _log.add_asset(name, "retargeted_animation_fbx", full_export_path, machine="UE", status="ready", avatar=avatar)
     return True, full_export_path # success, path

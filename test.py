@@ -71,7 +71,7 @@ popUp.show_popup_message("recordings equal?", f"{loca_1} == {loca_2}\n{loca_1 ==
 
 import unreal
 
-def print_all_actors():
+def print_all_actors(with_path=False):
     """
     Fetch an actor by name.
 
@@ -80,6 +80,9 @@ def print_all_actors():
     """
     actors = unreal.EditorLevelLibrary.get_all_level_actors()
     for actor in actors:
-        print(f"Actor found: {actor.get_name()}")
+        if with_path:
+            print(f"Actor found: {actor.get_path_name()}")
+        else:
+            print(f"Actor found: {actor.get_name()}")
 
-print_all_actors()
+print_all_actors(True)

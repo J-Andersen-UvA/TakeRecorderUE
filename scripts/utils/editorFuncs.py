@@ -9,6 +9,10 @@ def get_actor_by_name(name):
     """
     actors = unreal.EditorLevelLibrary.get_all_level_actors()
     for actor in actors:
+        if actor.get_name() == name:
+            return actor
+
+    for actor in actors:
         if name in actor.get_name():
             return actor
     return None

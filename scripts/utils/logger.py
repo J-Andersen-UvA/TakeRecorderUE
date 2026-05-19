@@ -40,8 +40,12 @@ def guess_gloss_from_filename_csv(path: str):
     if "_Device_" in name:
         return name.split("_Device_")[0]
 
-    # fallback: first chunk
-    return name.split("_")[0]
+    # LLF filename suffix -> gloss is before "_LLF_"
+    if "_LLF_" in name:
+        return name.split("_LLF_")[0]
+
+    # fallback: full name without suffixes, not just first chunk
+    return re.sub(r"_LLF.*$", "", name)
 
 
 class RecordingLog:

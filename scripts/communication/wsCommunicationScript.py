@@ -101,7 +101,8 @@ class websocketCommunication:
         print(f"WebSocket error: {error}")
 
     def on_ping(self, ws, message):
-        print(f"Received ping: {message}")
+        # print(f"Received ping: {message}")
+        pass
 
     def on_open(self, ws):
         """
