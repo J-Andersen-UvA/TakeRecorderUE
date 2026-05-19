@@ -123,7 +123,7 @@ class websocketCommunication:
         In some cases wait for the state to change before sending a confirmation message.
         """
         message = json.loads(message)
-        print(f"Received message: {message}")
+        # print(f"Received message: {message}")
 
         # Setting the status of the recorder lets the unreal tik function know what to do
         if message["set"] == "startRecord":
