@@ -13,8 +13,10 @@ class PlayLastActor:
         self.actor = actor
         self.actor_name = actor_name
         self.actor_shorthand = actor_shorthand
+        self.expected_gloss = None
         self.last_location = None
         self.last_anim = None
+        self.last_replayed_location = None
 
     @property
     def is_valid(self) -> bool:
@@ -38,23 +40,35 @@ class PlayLastActor:
         )
         return False
 
-    def fetch_animation_path(self, take_recorder, recording_root, gloss_name):
-        location = take_recorder.fetch_animation_path_for_recording_root(recording_root, self.actor_shorthand)
-        if location is None:
-            location = take_recorder.fetch_animation_path_by_slate(self.actor_shorthand, gloss_name)
-        if location is None:
-            location = take_recorder.fetch_last_animation_path(actor_name=self.actor_shorthand)
+    def begin_waiting_for(self, gloss_name):
+        if self.expected_gloss == gloss_name:
+            return
 
+        self.expected_gloss = gloss_name
+        self.last_location = None
+        self.last_anim = None
+
+    def fetch_expected_animation_path(self, take_recorder, gloss_name):
+        self.begin_waiting_for(gloss_name)
+        location = take_recorder.fetch_animation_path_by_slate(self.actor_shorthand, gloss_name)
         self.last_location = location
         return location
 
-    def load_animation(self, take_recorder, recording_root, gloss_name):
-        location = self.fetch_animation_path(take_recorder, recording_root, gloss_name)
+    def load_expected_animation(self, take_recorder, gloss_name):
+        location = self.fetch_expected_animation_path(take_recorder, gloss_name)
         self.last_anim = unreal.load_asset(location) if location else None
         return self.last_anim
 
-    def has_new_animation(self, old_location) -> bool:
-        return self.last_location is not None and self.last_location != old_location and self.last_anim is not None
+    def has_expected_animation_ready(self) -> bool:
+        return (
+            self.last_location is not None
+            and self.last_location != self.last_replayed_location
+            and self.last_anim is not None
+        )
 
     def set_loaded_anim(self) -> bool:
-        return self.set_anim(self.last_anim)
+        if not self.set_anim(self.last_anim):
+            return False
+
+        self.last_replayed_location = self.last_location
+        return True

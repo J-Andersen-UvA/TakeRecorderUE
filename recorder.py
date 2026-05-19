@@ -102,11 +102,11 @@ class KeepRunningTakeRecorder:
 
     def load_replay_animations(self, replay_gloss):
         for replay_actor in self.replayActors:
-            replay_actor.load_animation(self.tk, self._last_stopped_take_root, replay_gloss)
+            replay_actor.load_expected_animation(self.tk, replay_gloss)
 
-    def replay_animations_ready(self, old_location):
+    def replay_animations_ready(self):
         return bool(self.replayActors) and all(
-            replay_actor.has_new_animation(old_location)
+            replay_actor.has_expected_animation_ready()
             for replay_actor in self.replayActors
         )
 
@@ -117,6 +117,7 @@ class KeepRunningTakeRecorder:
         }
         for replay_actor in self.replayActors:
             extra[replay_actor.actor_shorthand] = replay_actor.last_location
+            extra[f"{replay_actor.actor_shorthand}_expected_gloss"] = replay_actor.expected_gloss
         return extra
 
     def retry_or_timeout_replay(self):
@@ -136,6 +137,7 @@ class KeepRunningTakeRecorder:
             replay_extra = {
                 "actor": replay_actor.actor_name,
                 "shorthand": replay_actor.actor_shorthand,
+                "expected_gloss": replay_actor.expected_gloss,
                 "location": replay_actor.last_location,
             }
             self.diagnostics.sample("before_replay_actor", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra=replay_extra)
@@ -275,7 +277,6 @@ class KeepRunningTakeRecorder:
                 return
 
             self.diagnostics.sample("before_replay_fetch", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
-            old_location = self.stateManager.get_last_location()
             replay_gloss = self.get_replay_gloss()
             self.load_replay_animations(replay_gloss)
 
@@ -286,7 +287,7 @@ class KeepRunningTakeRecorder:
                 extra=self.replay_locations_for_diagnostics(replay_gloss),
             )
 
-            if not self.replay_animations_ready(old_location):
+            if not self.replay_animations_ready():
                 self.retry_or_timeout_replay()
                 return
 
