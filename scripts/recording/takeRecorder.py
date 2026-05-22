@@ -336,12 +336,10 @@ class TakeRecorder:
             gloss_name = self.stateManager.get_gloss_name()
         print(f"Exporting last recording: {gloss_name}...")
 
-        if not location:
-            location = self.fetch_last_animation_path(actor_name=actor_name)
         if location is None:
             self.stateManager.flip_export_status()
             self.stateManager.set_recording_status(stateManagerScript.Status.IDLE)
-            popUp.show_popup_message("replay", "[TakeRecorder.py] No last recording found")
+            popUp.show_popup_message("Export Failed", f"[TakeRecorder.py] No animation found for {actor_name} / {gloss_name}")
             return False
         if hasattr(unreal, "EditorAssetLibrary") and not unreal.EditorAssetLibrary.does_asset_exist(location):
             self.stateManager.flip_export_status()

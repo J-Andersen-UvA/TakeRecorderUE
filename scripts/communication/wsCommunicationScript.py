@@ -4,6 +4,7 @@ import websocket
 import time
 import threading
 import ssl
+import os
 import scripts.state.stateManagerScript as stateManagerScript
 from scripts.export.exportAndSend import send_fbx_to_url_async
 
@@ -80,18 +81,21 @@ class websocketCommunication:
         stateManager.set_recording_status(value)
         return stateManager.get_recording_status()
 
-    def send_fbx_to_url(self, file_path, avatar_name="glassesGuy", endpoint="https://signcollect.nl/fbx2glb/upload/"):
+    def send_fbx_to_url(self, file_path, avatar_name="glassesGuy", endpoint="https://signcollect.nl/fbx2glb/upload/", gloss_name=None):
         """
         Fire-and-forget upload; immediately return to the main thread.
         """
         print("Starting background upload…")
+        if gloss_name is None:
+            gloss_name = stateManager.gloss_name_of_stopped_recording or stateManager.get_gloss_name()
+
         # kick off the upload on its own thread
-        send_fbx_to_url_async(file_path, endpoint, avatar_name, stateManager.get_gloss_name())
+        send_fbx_to_url_async(file_path, endpoint, avatar_name, gloss_name)
 
         # immediately send your WebSocket confirmation
         ws_JSON = {
             "handler": "fbxExportNameConfirmed",
-            "glosName": stateManager.get_gloss_name(),
+            "glosName": gloss_name,
             "avatarName": avatar_name
         }
         self.ws.send(json.dumps(ws_JSON))
@@ -209,15 +213,18 @@ class websocketCommunication:
                 print("Failed to export fbx, within time limit")
             
             if (stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_FAIL):
+                export_gloss = stateManager.gloss_name_of_stopped_recording or stateManager.get_gloss_name()
                 ws_JSON = {
                     "handler": "fbxExportNameConfirmed",
-                    "glosName": stateManager.get_gloss_name(),
+                    "glosName": export_gloss,
                     "avatarName": "_"
                 }
                 self.ws.send(json.dumps(ws_JSON))
             elif (stateManager.get_recording_status() == stateManagerScript.Status.EXPORT_SUCCESS):
-                self.send_fbx_to_url(stateManager.folder + stateManager.get_gloss_name() + ".fbx", avatar_name=self.actorName, endpoint=stateManager.upload_location)
-                print(f"Sending last recording done: {stateManager.get_gloss_name()}\tPath: {stateManager.last_location}")
+                export_gloss = stateManager.gloss_name_of_stopped_recording or stateManager.get_gloss_name()
+                export_path = os.path.join(stateManager.folder, export_gloss + ".fbx")
+                self.send_fbx_to_url(export_path, avatar_name=self.actorName, endpoint=stateManager.upload_location, gloss_name=export_gloss)
+                print(f"Sending last recording done: {export_gloss}\tPath: {stateManager.last_location}")
             elif (stateManager.get_export_status() == stateManagerScript.Status.IDLE):
                 print("Exporting failed, but not due to error, state was returned to idle")
             else:

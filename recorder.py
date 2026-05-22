@@ -81,6 +81,8 @@ class KeepRunningTakeRecorder:
 
         self._replay_retry_count = 0
         self._replay_retry_max = 60  # ticks; tune as needed
+        self._export_retry_count = 0
+        self._export_retry_max = 60  # ticks; tune as needed
 
         self.CSVWriter = CSVWriter.LiveLinkCSVManagerWrapper(stateManager)
         self._last_stopped_take_root = None
@@ -99,6 +101,26 @@ class KeepRunningTakeRecorder:
 
     def get_replay_gloss(self):
         return self.stateManager.gloss_name_of_stopped_recording or self.stateManager.get_gloss_name()
+
+    def get_export_gloss(self):
+        return self.stateManager.gloss_name_of_stopped_recording or self.stateManager.get_gloss_name()
+
+    def sync_slate_name(self):
+        if self.stateManager.gloss_name_cleaned in ["", None]:
+            return
+
+        current_slate = self.tk.get_slate()
+        if self.stateManager.gloss_name_cleaned == current_slate:
+            return
+
+        print(f"[recorder.py] Gloss name changed from {current_slate} to {self.tk._sanitize_name(self.stateManager.get_gloss_name())}")
+        self.tk.set_slate_name(self.stateManager.get_gloss_name())
+        self.diagnostics.sample(
+            "slate_name_synced",
+            state=self.stateManager.get_recording_status(),
+            gloss=self.stateManager.get_gloss_name(),
+            extra={"previous_slate": current_slate, "new_slate": self.stateManager.gloss_name_cleaned},
+        )
 
     def load_replay_animations(self, replay_gloss):
         for replay_actor in self.replayActors:
@@ -144,6 +166,21 @@ class KeepRunningTakeRecorder:
             replay_actor.set_loaded_anim()
             self.diagnostics.sample("after_replay_actor", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra=replay_extra)
 
+    def retry_or_timeout_export(self, export_gloss, locations):
+        self._export_retry_count += 1
+        if self._export_retry_count < self._export_retry_max:
+            return False
+
+        self._export_retry_count = 0
+        self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
+        self.diagnostics.sample(
+            "export_timed_out",
+            state=self.stateManager.get_recording_status(),
+            gloss=self.stateManager.get_gloss_name(),
+            extra={"export_gloss": export_gloss, **locations},
+        )
+        return True
+
     def start(self) -> None:
         """
         Start the take recorder.
@@ -188,6 +225,7 @@ class KeepRunningTakeRecorder:
             self._last_stopped_take_root = self.tk.fetch_last_recording_root_path()
             self.diagnostics.sample("resetting_ready", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
             self.stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+            self.sync_slate_name()
             self.diagnostics.sample(
                 "idle_after_resetting",
                 state=self.stateManager.get_recording_status(),
@@ -209,7 +247,7 @@ class KeepRunningTakeRecorder:
             return
 
         if self.stateManager.get_recording_status() == stateManagerScript.Status.START:
-            self.tk.set_slate_name(self.stateManager.get_gloss_name())
+            self.sync_slate_name()
             print(f"[recorder.py] Starting recording with slate name: {self.stateManager.get_gloss_name()}")
             self.diagnostics.sample("before_start_recording", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
 
@@ -236,10 +274,11 @@ class KeepRunningTakeRecorder:
         if self.stateManager.get_recording_status() == stateManagerScript.Status.STOP:
             self.diagnostics.sample("before_stop_recording", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
             self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
+            stopped_gloss = self.stateManager.gloss_name_of_stopped_recording or self.stateManager.get_gloss_name()
             self.tk.stop_recording()
             self.diagnostics.sample("after_stop_recording", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
             if self.CSVWriter:
-                ok = self.CSVWriter.stop_and_export(self.stateManager.get_gloss_name())
+                ok = self.CSVWriter.stop_and_export(stopped_gloss)
                 for csv_path in self.CSVWriter.last_file_paths:
                     gloss = guess_gloss_from_filename(csv_path)
 
@@ -305,46 +344,41 @@ class KeepRunningTakeRecorder:
             if not self.tk.take_recorder_ready():
                 return
 
-            location = None
-            location2 = None
-            location3 = None
+            export_gloss = self.get_export_gloss()
 
-            export_gloss = self.stateManager.gloss_name_of_stopped_recording or self.stateManager.get_gloss_name()
+            location = self.tk.fetch_animation_path_by_slate(self.actorNameShorthand, export_gloss)
+            location2 = self.tk.fetch_animation_path_by_slate(self.actorName2Shorthand, export_gloss) if self.actorName2Shorthand else None
+            location3 = self.tk.fetch_animation_path_by_slate(self.actorName3Shorthand, export_gloss) if self.actorName3Shorthand else None
+            export_locations = {self.actorNameShorthand: location}
+            if self.actorName2Shorthand:
+                export_locations[self.actorName2Shorthand] = location2
+            if self.actorName3Shorthand:
+                export_locations[self.actorName3Shorthand] = location3
 
-            location = self.tk.fetch_animation_path_for_recording_root(self._last_stopped_take_root, self.actorNameShorthand)
-            if location is None:
-                location = self.tk.fetch_animation_path_by_slate(self.actorNameShorthand, export_gloss)
-            if location is None:
-                location = self.tk.fetch_last_animation_path(actor_name=self.actorNameShorthand)
+            if location is None or (self.actorName2Shorthand and location2 is None) or (self.actorName3Shorthand and location3 is None):
+                self.retry_or_timeout_export(export_gloss, export_locations)
+                return
+
+            self._export_retry_count = 0
             self.stateManager.set_last_location(location)
             self.diagnostics.sample("before_export_actor1", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location})
-            if not self.tk.export_animation(location, self.stateManager.folder, self.stateManager.gloss_name_of_stopped_recording, actor_name=self.actorNameShorthand, avatar=self.actorNameShorthand):
+            if not self.tk.export_animation(location, self.stateManager.folder, export_gloss, actor_name=self.actorNameShorthand, avatar=self.actorNameShorthand):
                 self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
             else:
                 self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
             self.diagnostics.sample("after_export_actor1", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location})
 
             if self.actorName2Shorthand:
-                location2 = self.tk.fetch_animation_path_for_recording_root(self._last_stopped_take_root, self.actorName2Shorthand)
-                if location2 is None:
-                    location2 = self.tk.fetch_animation_path_by_slate(self.actorName2Shorthand, export_gloss)
-                if location2 is None:
-                    location2 = self.tk.fetch_last_animation_path(actor_name=self.actorName2Shorthand)
                 self.diagnostics.sample("before_export_actor2", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location2})
-                if not self.tk.export_animation(location2, self.stateManager.folder, self.stateManager.gloss_name_of_stopped_recording, actor_name=self.actorName2Shorthand, subfolder="CC", avatar=self.actorName2Shorthand, preview_mesh=False):
+                if not self.tk.export_animation(location2, self.stateManager.folder, export_gloss, actor_name=self.actorName2Shorthand, subfolder="CC", avatar=self.actorName2Shorthand, preview_mesh=False):
                     self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
                 elif self.stateManager.get_recording_status() != stateManagerScript.Status.EXPORT_FAIL:  # only set to success if the first export didn’t fail
                     self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
                 self.diagnostics.sample("after_export_actor2", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location2})
 
             if self.actorName3Shorthand:
-                location3 = self.tk.fetch_animation_path_for_recording_root(self._last_stopped_take_root, self.actorName3Shorthand)
-                if location3 is None:
-                    location3 = self.tk.fetch_animation_path_by_slate(self.actorName3Shorthand, export_gloss)
-                if location3 is None:
-                    location3 = self.tk.fetch_last_animation_path(actor_name=self.actorName3Shorthand)
                 self.diagnostics.sample("before_export_actor3", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location3})
-                if not self.tk.export_animation(location3, self.stateManager.folder, self.stateManager.gloss_name_of_stopped_recording, actor_name=self.actorName3Shorthand, subfolder="Vicon", avatar=self.actorName3Shorthand, preview_mesh=False):
+                if not self.tk.export_animation(location3, self.stateManager.folder, export_gloss, actor_name=self.actorName3Shorthand, subfolder="Vicon", avatar=self.actorName3Shorthand, preview_mesh=False):
                     self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
                 elif self.stateManager.get_recording_status() != stateManagerScript.Status.EXPORT_FAIL:  # only set to success if the first export didn’t fail
                     self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
@@ -358,9 +392,7 @@ class KeepRunningTakeRecorder:
 
         # If the recording status is idle, we check if the gloss name is different from the last one
         if self.stateManager.get_recording_status() == stateManagerScript.Status.IDLE:
-            if self.stateManager.gloss_name_cleaned != self.tk.get_slate() and self.stateManager.gloss_name_cleaned not in ["", None]:
-                print(f"[recorder.py] Gloss name changed from {self.tk.get_slate()} to {self.tk._sanitize_name(self.stateManager.get_gloss_name())}")
-                self.tk.set_slate_name(self.stateManager.get_gloss_name())
+            self.sync_slate_name()
 
         return
 
