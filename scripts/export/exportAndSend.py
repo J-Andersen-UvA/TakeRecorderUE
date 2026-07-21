@@ -30,9 +30,14 @@ def export_animation(animation_asset_path : str, export_path : str, name : str =
         FbxExportOptions.export_preview_mesh = preview_mesh
         FbxExportOptions.force_front_x_axis = force_front_x_axis
 
+        unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export.LoadAsset")
         animation_asset = unreal.load_asset(animation_asset_path)
         if animation_asset is None:
             raise ValueError(f"Could not load animation at path {animation_asset_path}")
+
+        if hasattr(unreal, "EditorAssetLibrary"):
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export.SaveAsset")
+            unreal.EditorAssetLibrary.save_asset(animation_asset_path, only_if_is_dirty=False)
 
         task = unreal.AssetExportTask()
         task.set_editor_property("exporter", unreal.AnimSequenceExporterFBX())
@@ -45,6 +50,7 @@ def export_animation(animation_asset_path : str, export_path : str, name : str =
         task.prompt = False
 
         # Export the animation
+        unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export.RunAssetExportTask")
         if not unreal.Exporter.run_asset_export_task(task):
             raise ValueError(f"Failed to export animation at path {animation_asset_path}")
     finally:
@@ -70,6 +76,7 @@ def _copy_file_in_background(source: str, destination: str, avatar: str | None =
         print(f"[Exporter] Failed to copy {source} -> {destination}\nError: {e}")
 
 def copy_paste_file_to_vicon_pc(source: str, destination_root: str = "//VICON-SB001869/Recordings", subfolder: str = "", avatar: str | None = None):
+    unreal.TraceUtilLibrary.trace_bookmark("MocapPython.CopyToVicon.Start")
     # Validate source
     if not os.path.exists(source):
         return False, f"Source file does not exist: {source}"
@@ -131,6 +138,7 @@ def send_fbx_to_url_async(
     avatar_name: str,
     gloss_name: str
 ):
+    unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Upload.Start")
     thread = threading.Thread(
         target=_upload_in_background,
         args=(file_path, endpoint, avatar_name, gloss_name),

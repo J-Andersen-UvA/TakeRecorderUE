@@ -1,5 +1,6 @@
 import unreal
 import sys
+import gc
 
 import scripts.recording.takeRecorder as takeRecorder
 import scripts.communication.wsCommunicationScript as wsCommunicationScript
@@ -16,6 +17,11 @@ from scripts.utils.logger import RecordingLog, guess_gloss_from_filename
 _log = RecordingLog()
 
 _take_recorder_started = False
+_active_take_recorder = None
+_active_keep_running_take_recorder = None
+_active_websocket_communication = None
+_active_state_manager = None
+_shutdown_callback_handle = None
 
 # Set the parameters from the config file
 params = Config()
@@ -86,7 +92,7 @@ class KeepRunningTakeRecorder:
 
         self.CSVWriter = CSVWriter.LiveLinkCSVManagerWrapper(stateManager)
         self._last_stopped_take_root = None
-        self.diagnostics = DiagnosticsLogger()
+        self.diagnostics = DiagnosticsLogger(enabled=False)  # Set to True to enable diagnostics logging
         self.diagnostics.sample("init", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
         # self.CSVWriter.check_cur_subject_available()
 
@@ -94,7 +100,9 @@ class KeepRunningTakeRecorder:
         self.diagnostics.sample("before_collect_garbage", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
         if hasattr(unreal, "SystemLibrary") and hasattr(unreal.SystemLibrary, "collect_garbage"):
             try:
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.GC.Before")
                 unreal.SystemLibrary.collect_garbage()
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.GC.After")
             except Exception as e:
                 unreal.log_warning(f"[recorder.py] Failed to collect garbage after asset processing: {e}")
         self.diagnostics.sample("after_collect_garbage", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
@@ -207,6 +215,18 @@ class KeepRunningTakeRecorder:
         else:
             print("[recorder.py] Slate post-tick callback was already unregistered or never registered.")
 
+    def spin_down(self) -> None:
+        """
+        Stop the Python-side recorder services and unregister the editor tick hook.
+        """
+        unreal.TraceUtilLibrary.trace_bookmark("MocapPython.SpinDown")
+        try:
+            self.stateManager.set_recording_status(stateManagerScript.Status.DIE)
+        except Exception as e:
+            unreal.log_warning(f"[recorder.py] Could not set DIE state while spinning down: {e}")
+        self.stop()
+        unreal.TraceUtilLibrary.trace_bookmark("MocapPython.SpinDown.Complete")
+
     def tick(self, delta_time: float) -> None:
         """
         Perform actions based on the current state.
@@ -222,7 +242,14 @@ class KeepRunningTakeRecorder:
             if not self.tk.take_recorder_ready():
                 return
 
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.TakeRecorderReadyAfterStop")
             self._last_stopped_take_root = self.tk.fetch_last_recording_root_path()
+            for replay_actor in self.replayActors:
+                replay_actor.last_anim = None
+            gc.collect()
+            unreal.SystemLibrary.collect_garbage()
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.PostTakeCleanupComplete")
+            self.tk.log_source_count("after recording cleanup")
             self.diagnostics.sample("resetting_ready", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
             self.stateManager.set_recording_status(stateManagerScript.Status.IDLE)
             self.sync_slate_name()
@@ -250,6 +277,14 @@ class KeepRunningTakeRecorder:
             self.sync_slate_name()
             print(f"[recorder.py] Starting recording with slate name: {self.stateManager.get_gloss_name()}")
             self.diagnostics.sample("before_start_recording", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.ReleasePreviousReplay.Begin")
+            for replay_actor in self.replayActors:
+                replay_actor.clear_anim()
+            gc.collect()
+            unreal.SystemLibrary.collect_garbage()
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.ReleasePreviousReplay.Complete")
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.BeginRecording")
+            self.tk.log_source_count("before recording")
 
             try:
                 self.tk.start_recording()
@@ -269,16 +304,21 @@ class KeepRunningTakeRecorder:
 
             self.stateManager.set_recording_status(stateManagerScript.Status.RECORDING)
             self.diagnostics.sample("after_start_recording", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.BeginRecording.Complete")
             return
 
         if self.stateManager.get_recording_status() == stateManagerScript.Status.STOP:
             self.diagnostics.sample("before_stop_recording", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.StopRecording")
             self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
             stopped_gloss = self.stateManager.gloss_name_of_stopped_recording or self.stateManager.get_gloss_name()
             self.tk.stop_recording()
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.StopRecording.Complete")
             self.diagnostics.sample("after_stop_recording", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
             if self.CSVWriter:
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.CSVExport")
                 ok = self.CSVWriter.stop_and_export(stopped_gloss)
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.CSVExport.Complete")
                 for csv_path in self.CSVWriter.last_file_paths:
                     gloss = guess_gloss_from_filename(csv_path)
 
@@ -331,9 +371,11 @@ class KeepRunningTakeRecorder:
                 return
 
             self._replay_retry_count = 0
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Replay")
             self.set_replay_actor_animations()
             self.stateManager.set_last_location(self.replayActors[0].last_location)
             self.diagnostics.sample("after_replay", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Replay.Complete")
             self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
             return
 
@@ -360,6 +402,7 @@ class KeepRunningTakeRecorder:
                 return
 
             self._export_retry_count = 0
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export")
             self.stateManager.set_last_location(location)
             self.diagnostics.sample("before_export_actor1", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location})
             if not self.tk.export_animation(location, self.stateManager.folder, export_gloss, actor_name=self.actorNameShorthand, avatar=self.actorNameShorthand):
@@ -389,6 +432,7 @@ class KeepRunningTakeRecorder:
             location3 = None
             self.cleanup_loaded_assets()
             self.diagnostics.sample("after_export_branch", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export.Complete")
 
         # If the recording status is idle, we check if the gloss name is different from the last one
         if self.stateManager.get_recording_status() == stateManagerScript.Status.IDLE:
@@ -396,21 +440,7 @@ class KeepRunningTakeRecorder:
 
         return
 
-def main():
-    global _take_recorder_started
-
-    if _take_recorder_started:
-        popUp.show_popup_message("Take Recorder", "Take Recorder is already running.\nPlease restart Unreal Engine to reset it.")
-        return
-
-    _take_recorder_started = True
-
-    print("[recorder`.py] Starting recorder...")
-    stateManager = stateManagerScript.StateManager(params.record_path)
-    stateManager.set_folder(params.record_path)
-    stateManager.set_endpoint_file(params.export_endpoint)
-    stateManager.set_recording_status(stateManagerScript.Status.IDLE)
-    tk = takeRecorder.TakeRecorder(stateManager)
+def add_configured_take_recorder_sources(tk):
     # First actor
     tk.add_actor_to_take_recorder(editorFuncs.get_actor_by_shorthand(params.actor_name_shorthand))
 
@@ -421,14 +451,134 @@ def main():
         # Third actor
         tk.add_actor_to_take_recorder(editorFuncs.get_actor_by_shorthand(params.get('actor3_name_shorthand')))
 
+def main():
+    global _take_recorder_started
+    global _active_take_recorder
+    global _active_keep_running_take_recorder
+    global _active_websocket_communication
+    global _active_state_manager
+
+    if _take_recorder_started:
+        popUp.show_popup_message("Take Recorder", "Take Recorder is already running.\nUse Stop Take Recorder to spin it down first.")
+        return
+
+    _take_recorder_started = True
+
+    unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Setup")
+    print("[recorder`.py] Starting recorder...")
+    stateManager = stateManagerScript.StateManager(params.record_path)
+    stateManager.set_folder(params.record_path)
+    stateManager.set_endpoint_file(params.export_endpoint)
+    stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+    _active_state_manager = stateManager
+    tk = takeRecorder.TakeRecorder(stateManager)
+    _active_take_recorder = tk
+    add_configured_take_recorder_sources(tk)
+
     ktk = KeepRunningTakeRecorder(tk, stateManager, "")
     ktk.start()
+    _active_keep_running_take_recorder = ktk
 
     host = params.ws_url
     if len(sys.argv) > 1:
         host = sys.argv[1]
     wsCom = wsCommunicationScript.websocketCommunication(host, tk, ktk, params.actor_name, params.replay_actor_name)
+    _active_websocket_communication = wsCom
+    unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Setup.Complete")
     # wsCom.keep_running_take_recorder = tk
+
+def spin_down_take_recorder(show_popup=True):
+    global _take_recorder_started
+    global _active_take_recorder
+    global _active_keep_running_take_recorder
+    global _active_websocket_communication
+    global _active_state_manager
+
+    if not _take_recorder_started and _active_keep_running_take_recorder is None and _active_websocket_communication is None:
+        if show_popup:
+            popUp.show_popup_message("Take Recorder", "Python Take Recorder is not running.")
+        return
+
+    unreal.TraceUtilLibrary.trace_bookmark("MocapPython.StopPythonTakeRecorder")
+
+    if _active_keep_running_take_recorder is not None:
+        _active_keep_running_take_recorder.spin_down()
+
+    if _active_websocket_communication is not None:
+        try:
+            _active_websocket_communication.close_connection()
+        except Exception as e:
+            unreal.log_warning(f"[recorder.py] Failed to close websocket while spinning down: {e}")
+
+    if _active_state_manager is not None:
+        try:
+            _active_state_manager.set_recording_status(stateManagerScript.Status.IDLE)
+        except Exception as e:
+            unreal.log_warning(f"[recorder.py] Failed to restore idle state after spin down: {e}")
+
+    _active_take_recorder = None
+    _active_keep_running_take_recorder = None
+    _active_websocket_communication = None
+    _active_state_manager = None
+    _take_recorder_started = False
+    wsCommunicationScript.websocketCommunication._instance = None
+
+    unreal.TraceUtilLibrary.trace_bookmark("MocapPython.StopPythonTakeRecorder.Complete")
+    if show_popup:
+        popUp.show_popup_message("Take Recorder", "Python Take Recorder spun down. You can start it again from ToucanTools.")
+
+def restart_take_recorder_panel():
+    global _active_take_recorder
+    global _active_state_manager
+
+    if _active_state_manager is not None and _active_state_manager.get_recording_status() == stateManagerScript.Status.RECORDING:
+        popUp.show_popup_message("Take Recorder", "Cannot restart the Take Recorder panel while recording.")
+        return
+
+    if _active_take_recorder is None:
+        if _active_state_manager is None:
+            _active_state_manager = stateManagerScript.StateManager()
+        _active_take_recorder = takeRecorder.TakeRecorder(_active_state_manager)
+
+    restarted = _active_take_recorder.restart_take_recorder_panel()
+    source_count = _active_take_recorder.log_source_count("after panel restart source restore check")
+    if source_count == 0:
+        add_configured_take_recorder_sources(_active_take_recorder)
+        _active_take_recorder.log_source_count("after panel restart source restore")
+
+    if restarted:
+        popUp.show_popup_message("Take Recorder", "Take Recorder panel restarted.")
+    else:
+        popUp.show_popup_message("Take Recorder", "Take Recorder panel restart was partial. Check the Unreal log for exposed close-method details.")
+
+def spin_down_take_recorder_on_shutdown(*args, **kwargs):
+    try:
+        spin_down_take_recorder(show_popup=False)
+    except Exception as e:
+        try:
+            unreal.log_warning(f"[recorder.py] Shutdown spin-down failed: {e}")
+        except Exception:
+            pass
+
+def register_shutdown_spin_down():
+    global _shutdown_callback_handle
+
+    if _shutdown_callback_handle is not None:
+        return
+
+    for method_name in ("register_python_shutdown_callback", "register_editor_exit_callback"):
+        if not hasattr(unreal, method_name):
+            continue
+        try:
+            _shutdown_callback_handle = getattr(unreal, method_name)(spin_down_take_recorder_on_shutdown)
+            unreal.log(f"[recorder.py] Registered shutdown spin-down callback with unreal.{method_name}.")
+            return
+        except Exception as e:
+            unreal.log_warning(f"[recorder.py] Failed to register unreal.{method_name}: {e}")
+
+    unreal.log_warning("[recorder.py] No Unreal Python shutdown callback API was exposed; use Stop Take Recorder before closing the editor.")
+
+register_shutdown_spin_down()
 
 # 1) Create a brand-new tab called “ToucanTools”
 Button(
@@ -448,5 +598,23 @@ Button(
     label="Run Take Recorder",
     callback=main,
     tooltip="Runs the Take Recorder to record animations.",
+    overwrite=True
+)
+
+Button(
+    menu_path="LevelEditor.MainMenu.ToucanTools",
+    section_name="TakeRecorderSection",
+    label="Stop Take Recorder",
+    callback=spin_down_take_recorder,
+    tooltip="Stops the Python Take Recorder tick hook and websocket connection.",
+    overwrite=True
+)
+
+Button(
+    menu_path="LevelEditor.MainMenu.ToucanTools",
+    section_name="TakeRecorderSection",
+    label="Restart Take Recorder Panel",
+    callback=restart_take_recorder_panel,
+    tooltip="Experimental: closes and reopens the Take Recorder panel, then restores sources if needed.",
     overwrite=True
 )

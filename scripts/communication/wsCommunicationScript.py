@@ -5,6 +5,7 @@ import time
 import threading
 import ssl
 import os
+import unreal
 import scripts.state.stateManagerScript as stateManagerScript
 from scripts.export.exportAndSend import send_fbx_to_url_async
 
@@ -37,6 +38,7 @@ class websocketCommunication:
         """
         Closes the WebSocket connection if it is open.
         """
+        unreal.TraceUtilLibrary.trace_bookmark("MocapPython.WebSocket.Close")
         if self.ws is not None and self.ws.sock and self.ws.sock.connected:
             print("Closing existing WebSocket connection...")
             self.ws.close()
@@ -52,6 +54,7 @@ class websocketCommunication:
         """
         Opens a new WebSocket connection.
         """
+        unreal.TraceUtilLibrary.trace_bookmark("MocapPython.WebSocket.Open")
         print(f"Opening WebSocket connection to {self.host}...")
         retries = 3  # Number of times to retry connecting
         for attempt in range(retries):

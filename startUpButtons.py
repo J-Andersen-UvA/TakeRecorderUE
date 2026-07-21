@@ -2,6 +2,7 @@ from scripts.utils.ui_utils import Button
 import scripts.utils.editorFuncs as editorFuncs
 from scripts.config.params import Config
 from scripts.utils.iphoneControl import open_iphone_control_menu
+from scripts.export.manualAnimationExport import select_and_export_animation
 
 params = Config()
 actor = editorFuncs.get_actor_by_shorthand(params.actor_name_shorthand)
@@ -47,5 +48,14 @@ Button(
     label="Open iPhone Control Menu",
     callback=open_iphone_control_menu,
     tooltip="Open the iPhone control menu",
+    overwrite=True
+)
+
+Button(
+    menu_path="LevelEditor.MainMenu.ToucanTools",
+    section_name="Animation",
+    label="Test Animation Export",
+    callback=select_and_export_animation,
+    tooltip="Select an animation asset and export it through the pipeline FBX exporter",
     overwrite=True
 )

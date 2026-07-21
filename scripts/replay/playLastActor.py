@@ -40,6 +40,20 @@ class PlayLastActor:
         )
         return False
 
+    def clear_anim(self) -> None:
+        if self.actor:
+            for property_name in ("CurrentAnim", "current_anim"):
+                try:
+                    self.actor.set_editor_property(property_name, None)
+                    break
+                except Exception:
+                    pass
+
+        self.last_anim = None
+        self.last_location = None
+        self.last_replayed_location = None
+        self.expected_gloss = None
+
     def begin_waiting_for(self, gloss_name):
         if self.expected_gloss == gloss_name:
             return
@@ -56,6 +70,7 @@ class PlayLastActor:
 
     def load_expected_animation(self, take_recorder, gloss_name):
         location = self.fetch_expected_animation_path(take_recorder, gloss_name)
+        unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Replay.LoadAnimation")
         self.last_anim = unreal.load_asset(location) if location else None
         return self.last_anim
 

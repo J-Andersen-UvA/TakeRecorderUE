@@ -3,6 +3,7 @@ import scripts.utils.UEFileManagerScript as UEFileManager
 import scripts.utils.popUp as popUp
 import scripts.state.stateManagerScript as stateManagerScript
 import scripts.export.exportAndSend as exportAndSend
+import gc
 import re
 from datetime import datetime
 
@@ -35,10 +36,7 @@ class TakeRecorder:
 
         unreal.TakeRecorderBlueprintLibrary.open_take_recorder_panel()
         self.take_recorder_panel = None
-        self.metadata = None
         self.ensure_take_recorder_panel()
-        self.levelSequence = unreal.LevelSequence
-        self.metadata = self.take_recorder_panel.get_take_meta_data()
         self.UEFileFuncs = UEFileManager.UEFileFunctionalities()        
 
     # make it callable
@@ -72,13 +70,12 @@ class TakeRecorder:
                 return False
 
         self.take_recorder_panel = panel
-        self.metadata = self.take_recorder_panel.get_take_meta_data()
         return True
 
     def get_slate(self) -> str:
         """Retrieve the slate information from the take recorder panel."""
-        self.metadata = self.take_recorder_panel.get_take_meta_data()
-        return self.metadata.get_slate()
+        metadata = self.take_recorder_panel.get_take_meta_data()
+        return metadata.get_slate()
 
     def set_slate_name(self, name : str) -> None:
         """
@@ -87,13 +84,82 @@ class TakeRecorder:
         :param name: The name to set as the slate.
         """
         clean_name = self._sanitize_name(name)
-        self.metadata = self.take_recorder_panel.get_take_meta_data()
-        self.metadata.set_slate(clean_name)
+        metadata = self.take_recorder_panel.get_take_meta_data()
+        metadata.set_slate(clean_name)
 
     def get_sources(self):
         """Retrieve the sources from the take recorder panel."""
         lala = unreal.TakeRecorderBlueprintLibrary().get_take_recorder_panel()
         return lala.get_sources()
+
+    def log_source_count(self, label: str) -> None:
+        try:
+            sources = self.take_recorder_panel.get_sources()
+
+            if hasattr(sources, "get_sources"):
+                source_items = list(sources.get_sources())
+                unreal.log_warning(
+                    f"[TakeRecorder] {label}: source count={len(source_items)}"
+                )
+                return len(source_items)
+            else:
+                unreal.log_warning(
+                    f"[TakeRecorder] {label}: get_sources() is not exposed"
+                )
+                return None
+        except Exception as exc:
+            unreal.log_warning(
+                f"[TakeRecorder] Could not inspect sources for '{label}': {exc}"
+            )
+            return None
+
+    def _close_take_recorder_panel_if_exposed(self) -> bool:
+        library = unreal.TakeRecorderBlueprintLibrary
+        for method_name in ("close_take_recorder_panel", "close_panel"):
+            if not hasattr(library, method_name):
+                continue
+            try:
+                getattr(library, method_name)()
+                return True
+            except Exception as exc:
+                unreal.log_warning(f"[TakeRecorder] {method_name} failed: {exc}")
+
+        panel = self.take_recorder_panel or library.get_take_recorder_panel()
+        if panel is None:
+            return True
+
+        for method_name in ("close", "request_close", "close_window", "close_tab"):
+            if not hasattr(panel, method_name):
+                continue
+            try:
+                getattr(panel, method_name)()
+                return True
+            except Exception as exc:
+                unreal.log_warning(f"[TakeRecorder] panel.{method_name} failed: {exc}")
+
+        unreal.log_warning("[TakeRecorder] This Unreal build does not expose a Python close method for the Take Recorder panel.")
+        return False
+
+    def restart_take_recorder_panel(self) -> bool:
+        if self.is_recording():
+            unreal.log_warning("[TakeRecorder] Refusing to restart the Take Recorder panel while recording.")
+            return False
+
+        unreal.TraceUtilLibrary.trace_bookmark("MocapPython.RestartTakeRecorderPanel.Begin")
+        self.log_source_count("before panel restart")
+        closed = self._close_take_recorder_panel_if_exposed()
+        self.take_recorder_panel = None
+        gc.collect()
+        if hasattr(unreal, "SystemLibrary") and hasattr(unreal.SystemLibrary, "collect_garbage"):
+            unreal.SystemLibrary.collect_garbage()
+
+        ok = self.ensure_take_recorder_panel()
+        self.log_source_count("after panel restart")
+        unreal.TraceUtilLibrary.trace_bookmark("MocapPython.RestartTakeRecorderPanel.Complete")
+
+        if not closed:
+            unreal.log_warning("[TakeRecorder] Panel reopen was attempted, but panel close was not exposed. Treat this as a partial restart probe.")
+        return ok and closed
 
     def get_slate_from_take(self) -> str:
         """Retrieve the slate information from the current take."""
@@ -141,18 +207,21 @@ class TakeRecorder:
         """
         Fetch the package path for the last recorded root level sequence.
         """
-        last_record = self.fetch_last_recording()
+        last_record = self.take_recorder_panel.get_last_recorded_level_sequence()
         if last_record is None:
             return None
 
-        return last_record.get_path_name().split(".")[0]
+        recording_path = last_record.get_path_name().split(".")[0]
+        last_record = None
+        return recording_path
 
     def _last_recording_path_parts(self):
-        last_record = self.fetch_last_recording()
+        last_record = self.take_recorder_panel.get_last_recorded_level_sequence()
         if last_record is None:
             return None, None, None
 
         unreal_take = last_record.get_path_name().split(".")[0]
+        last_record = None
         unreal_scene = unreal_take.rsplit("/", 1)[-1]
         take_folder = unreal_take.rsplit("/", 1)[0]
         return unreal_take, unreal_scene, take_folder
