@@ -87,6 +87,7 @@ class KeepRunningTakeRecorder:
 
         self._replay_retry_count = 0
         self._replay_retry_max = 60  # ticks; tune as needed
+        self._export_in_progress = False
         self._export_retry_count = 0
         self._export_retry_max = 60  # ticks; tune as needed
 
@@ -382,6 +383,10 @@ class KeepRunningTakeRecorder:
         # Exporting needs to be done through the main thread since UE5.5, the subthread communicating with the websocket therefore
         # communicates with this main thread loop
         if self.stateManager.get_recording_status() in (stateManagerScript.Status.FBX_EXPORT, stateManagerScript.Status.EXPORT_FBX):
+            if self._export_in_progress:
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export.ReentrantTickSkipped")
+                return
+
             # don’t start the export until the panel is ready
             if not self.tk.take_recorder_ready():
                 return
@@ -402,37 +407,49 @@ class KeepRunningTakeRecorder:
                 return
 
             self._export_retry_count = 0
-            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export")
-            self.stateManager.set_last_location(location)
-            self.diagnostics.sample("before_export_actor1", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location})
-            if not self.tk.export_animation(location, self.stateManager.folder, export_gloss, actor_name=self.actorNameShorthand, avatar=self.actorNameShorthand):
+            # Asset saves/exports can pump Slate and reenter tick().
+            self._export_in_progress = True
+            try:
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export.Batch.Begin")
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export")
+                self.stateManager.set_last_location(location)
+                self.diagnostics.sample("before_export_actor1", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location})
+                if not self.tk.export_animation(location, self.stateManager.folder, export_gloss, actor_name=self.actorNameShorthand, avatar=self.actorNameShorthand):
+                    self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
+                else:
+                    self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
+                self.diagnostics.sample("after_export_actor1", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location})
+
+                if self.actorName2Shorthand:
+                    self.diagnostics.sample("before_export_actor2", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location2})
+                    if not self.tk.export_animation(location2, self.stateManager.folder, export_gloss, actor_name=self.actorName2Shorthand, subfolder="CC", avatar=self.actorName2Shorthand, preview_mesh=False):
+                        self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
+                    elif self.stateManager.get_recording_status() != stateManagerScript.Status.EXPORT_FAIL:  # only set to success if the first export didn’t fail
+                        self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
+                    self.diagnostics.sample("after_export_actor2", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location2})
+
+                if self.actorName3Shorthand:
+                    self.diagnostics.sample("before_export_actor3", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location3})
+                    if not self.tk.export_animation(location3, self.stateManager.folder, export_gloss, actor_name=self.actorName3Shorthand, subfolder="Vicon", avatar=self.actorName3Shorthand, preview_mesh=False):
+                        self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
+                    elif self.stateManager.get_recording_status() != stateManagerScript.Status.EXPORT_FAIL:  # only set to success if the first export didn’t fail
+                        self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
+                    self.diagnostics.sample("after_export_actor3", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location3})
+
+                location = None
+                location2 = None
+                location3 = None
+                self.cleanup_loaded_assets()
+                self.diagnostics.sample("after_export_branch", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export.Complete")
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export.Batch.Complete")
+            except Exception as e:
                 self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
-            else:
-                self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
-            self.diagnostics.sample("after_export_actor1", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location})
+                unreal.log_error(f"[recorder.py] FBX export batch failed: {e}")
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export.Batch.Failed")
+            finally:
+                self._export_in_progress = False
 
-            if self.actorName2Shorthand:
-                self.diagnostics.sample("before_export_actor2", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location2})
-                if not self.tk.export_animation(location2, self.stateManager.folder, export_gloss, actor_name=self.actorName2Shorthand, subfolder="CC", avatar=self.actorName2Shorthand, preview_mesh=False):
-                    self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
-                elif self.stateManager.get_recording_status() != stateManagerScript.Status.EXPORT_FAIL:  # only set to success if the first export didn’t fail
-                    self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
-                self.diagnostics.sample("after_export_actor2", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location2})
-
-            if self.actorName3Shorthand:
-                self.diagnostics.sample("before_export_actor3", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location3})
-                if not self.tk.export_animation(location3, self.stateManager.folder, export_gloss, actor_name=self.actorName3Shorthand, subfolder="Vicon", avatar=self.actorName3Shorthand, preview_mesh=False):
-                    self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_FAIL)
-                elif self.stateManager.get_recording_status() != stateManagerScript.Status.EXPORT_FAIL:  # only set to success if the first export didn’t fail
-                    self.stateManager.set_recording_status(stateManagerScript.Status.EXPORT_SUCCESS)
-                self.diagnostics.sample("after_export_actor3", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name(), extra={"location": location3})
-
-            location = None
-            location2 = None
-            location3 = None
-            self.cleanup_loaded_assets()
-            self.diagnostics.sample("after_export_branch", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
-            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export.Complete")
 
         # If the recording status is idle, we check if the gloss name is different from the last one
         if self.stateManager.get_recording_status() == stateManagerScript.Status.IDLE:

@@ -37,7 +37,7 @@ def export_animation(animation_asset_path : str, export_path : str, name : str =
 
         if hasattr(unreal, "EditorAssetLibrary"):
             unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Export.SaveAsset")
-            unreal.EditorAssetLibrary.save_asset(animation_asset_path, only_if_is_dirty=False)
+            unreal.EditorAssetLibrary.save_asset(animation_asset_path, only_if_is_dirty=True)
 
         task = unreal.AssetExportTask()
         task.set_editor_property("exporter", unreal.AnimSequenceExporterFBX())
