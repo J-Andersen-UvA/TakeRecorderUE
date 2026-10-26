@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 from scripts.utils.logger import RecordingLog, RecordingLogSingleAnim, guess_gloss_from_filename_csv
 import shutil
+from scripts.config.params import Config
 _log = RecordingLog()
 
 def export_animation(animation_asset_path : str, export_path : str, name : str = "animation", ascii : bool = False, force_front_x_axis : bool = False, subfolder : str = "", avatar : str = None, preview_mesh : bool = True):
@@ -64,8 +65,11 @@ def export_animation(animation_asset_path : str, export_path : str, name : str =
     _log.add_asset(name, "retargeted_animation_fbx", full_export_path, machine="UE", status="ready", avatar=avatar)
     return True, full_export_path # success, path
 
-def _copy_file_in_background(source: str, destination: str, avatar: str | None = None):
+def _copy_file_in_background(source: str, destination_folder: str, destination: str, avatar: str | None = None):
     try:
+        if not os.path.exists(source):
+            raise FileNotFoundError(f"Source file does not exist: {source}")
+        os.makedirs(destination_folder, exist_ok=True)
         shutil.copyfile(source, destination)
         print(f"[Exporter] Copied {source} -> {destination}")
         machine_name = None
@@ -75,12 +79,10 @@ def _copy_file_in_background(source: str, destination: str, avatar: str | None =
     except Exception as e:
         print(f"[Exporter] Failed to copy {source} -> {destination}\nError: {e}")
 
-def copy_paste_file_to_vicon_pc(source: str, destination_root: str = "//VICON-SB001869/Recordings", subfolder: str = "", avatar: str | None = None):
+def copy_paste_file_to_vicon_pc(source: str, destination_root: str | None = None, subfolder: str = "", avatar: str | None = None):
+    if destination_root is None:
+        destination_root = Config().destination_root
     unreal.TraceUtilLibrary.trace_bookmark("MocapPython.CopyToVicon.Start")
-    # Validate source
-    if not os.path.exists(source):
-        return False, f"Source file does not exist: {source}"
-
     date_str = datetime.now().strftime("%Y-%m-%d")
     destination_dated_folder = os.path.join(destination_root, date_str)
 
@@ -96,18 +98,14 @@ def copy_paste_file_to_vicon_pc(source: str, destination_root: str = "//VICON-SB
     if subfolder:
         destination_folder = os.path.join(destination_folder, subfolder)
 
-    try:
-        # Ensure remote folder exists (UNC paths are supported if permissions allow)
-        os.makedirs(destination_folder, exist_ok=True)
-    except Exception as e:
-        return False, f"Failed to create remote folder: {destination_folder}\nError: {e}"
-
     destination = os.path.join(destination_folder, os.path.basename(source))
 
     # Copy file in a background thread
+    worker_label = avatar or subfolder or anim_name
     thread = threading.Thread(
         target=_copy_file_in_background,
-        args=(source, destination, avatar),
+        args=(source, destination_folder, destination, avatar),
+        name=f"ViconCopy-{worker_label}",
         daemon=True
     )
     thread.start()

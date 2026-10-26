@@ -87,6 +87,7 @@ class KeepRunningTakeRecorder:
 
         self._replay_retry_count = 0
         self._replay_retry_max = 60  # ticks; tune as needed
+        self._stop_in_progress = False
         self._export_in_progress = False
         self._export_retry_count = 0
         self._export_retry_max = 60  # ticks; tune as needed
@@ -236,6 +237,10 @@ class KeepRunningTakeRecorder:
         If the recording state is "stop", stop recording.
         If the recording state is "replay_record", replay the last recording.
         """
+        if self._stop_in_progress:
+            unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Stop.ReentrantTickSkipped")
+            return
+
         # When resetting, we are waiting for the take recorder to be ready (making it so he has saved the last recording)
         if self.stateManager.get_recording_status() == stateManagerScript.Status.RESETTING:
 
@@ -313,7 +318,18 @@ class KeepRunningTakeRecorder:
             unreal.TraceUtilLibrary.trace_bookmark("MocapPython.StopRecording")
             self.stateManager.set_recording_status(stateManagerScript.Status.RESETTING)
             stopped_gloss = self.stateManager.gloss_name_of_stopped_recording or self.stateManager.get_gloss_name()
-            self.tk.stop_recording()
+            self._stop_in_progress = True
+            try:
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Stop.NativeCall.Begin")
+                self.tk.stop_recording()
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Stop.NativeCall.Complete")
+            except Exception as e:
+                unreal.log_error(f"[recorder.py] Take Recorder failed to stop: {e}")
+                unreal.TraceUtilLibrary.trace_bookmark("MocapPython.Stop.NativeCall.Failed")
+                self.stateManager.set_recording_status(stateManagerScript.Status.IDLE)
+                return
+            finally:
+                self._stop_in_progress = False
             unreal.TraceUtilLibrary.trace_bookmark("MocapPython.StopRecording.Complete")
             self.diagnostics.sample("after_stop_recording", state=self.stateManager.get_recording_status(), gloss=self.stateManager.get_gloss_name())
             if self.CSVWriter:
@@ -335,8 +351,7 @@ class KeepRunningTakeRecorder:
                     if csv_path:
                         unreal.log(f"[recorder.py] Exporting CSV file at: {csv_path}")
                         success, msg = exportAndSend.copy_paste_file_to_vicon_pc(
-                            source=csv_path,
-                            destination_root="//VICON-SB001869/Recordings"
+                            source=csv_path
                         )
                         if not success:
                             popUp.show_popup_message(

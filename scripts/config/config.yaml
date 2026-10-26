@@ -1,6 +1,9 @@
 # Path to the folder where the fbx animations are stored
 record_path: "D:\\MOCAP\\Recordings\\RecordingsUE\\"
 
+# Network share receiving both FBX animations and CSV files
+destination_root: "//192.168.0.181/Recordings"
+
 # Name of actor that is being recorded (used for skeleton identification and take identification)
 actor_name: "GGRecNew_C_1"
 actor_name_shorthand: "GGRecNew"

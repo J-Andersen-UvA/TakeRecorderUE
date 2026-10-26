@@ -15,7 +15,7 @@ class Config:
         self._data = data
 
     def _validate(self, d: dict):
-        required = ["export_endpoint", "ws_url", "record_path"]
+        required = ["export_endpoint", "ws_url", "record_path", "destination_root"]
         missing = [k for k in required if k not in d]
         if missing:
             popUp.show_popup_message("Configuration Error", f"Missing keys in config.yaml: {', '.join(missing)}")
